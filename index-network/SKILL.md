@@ -10,7 +10,7 @@ metadata:
 
 # Index Network — Edge Esmeralda
 
-EdgeClaw's bundle for surfacing opportunities through Edge Esmeralda's Index Network integration. The Index Network MCP (server `index`) is the tool surface; this skill carries the Edge-flavored procedural knowledge for using it.
+Edge's bundle for surfacing opportunities through Edge Esmeralda's Index Network integration. The Index Network MCP (server `index`) is the tool surface; this skill carries the Edge-flavored procedural knowledge for using it.
 
 ## When to read each file
 
@@ -19,7 +19,7 @@ EdgeClaw's bundle for surfacing opportunities through Edge Esmeralda's Index Net
 - **`read_user_profiles().onboardingComplete === false`** → [bootstrap.md](bootstrap.md). Six-step Index Network onboarding ritual and the session-start gate.
 - **Heartbeat tick** → [heartbeat.md](heartbeat.md). Accepted-opportunity notifications and signal-freshness pruning.
 
-Cron prompts in `prompts/` (`welcome.md`, `digest.md`, `ambient.md`) are loaded by the cron runner via `--message`; you do not read them yourself. The crons themselves are EdgeClaw infrastructure — toggling them on or off is handled by `workspace/SCHEDULE.md`, not this skill.
+Cron prompts in `prompts/` (`welcome.md`, `digest.md`, `ambient.md`) are loaded by the cron runner via `--message`; you do not read them yourself. The crons themselves are Edge infrastructure — toggling them on or off is handled by `workspace/SCHEDULE.md`, not this skill.
 
 ## Handoff
 

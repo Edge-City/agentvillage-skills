@@ -1,6 +1,6 @@
 ---
 name: edge-esmeralda-2026
-description: Edge Esmeralda 2026 — a month-long popup village (May 30 – Jun 27, Healdsburg, CA). Carries popup constants (popup id, week dates, themes), attendee directory field semantics, the curated wiki / website / newsletter knowledge base, and the onboarding pointer for obtaining EdgeOS tokens. Pair with the `edgeos` skill for live API access and the `index-network` skill for discovery.
+description: Edge Esmeralda 2026 — a month-long popup village (May 30 – Jun 27, Healdsburg, CA). Carries popup constants (popup id, week dates, themes), attendee directory field semantics, and the curated wiki / website / newsletter knowledge base. Pair with the `edgeos` skill for live API access and the `index-network` skill for discovery.
 version: 3.0.0
 author: Edge City
 tags: [edge-city, edge-esmeralda, popup-village, community]
@@ -42,28 +42,7 @@ When the user says "week 2", convert to `start_after=2026-06-06T00:00:00Z&start_
 
 ---
 
-## 2. How to obtain EdgeOS tokens
-
-To use the `edgeos` skill you need `$EDGEOS_BEARER_TOKEN` and `$EDGEOS_API_KEY` set in your environment.
-
-**Visit `<EDGECITY-ONBOARDING-URL>` and complete the email OTP flow.** The onboarding page will issue both tokens. Then set them in your agent's host:
-
-> If `<EDGECITY-ONBOARDING-URL>` is still the literal angle-bracket string when you read this, the onboarding page has not yet been published — do not attempt to fetch it. Instead tell the user the EdgeOS onboarding flow isn't live yet, point them at `https://edgecity.live` and `info@edgeesmeralda.com` to ask for an update, and stop.
-
-
-- **OpenClaw**: re-run the EdgeClaw installer with the tokens as flags —
-  `bun install/install.ts --index-api-key <ix_...> --edgeos-api-key <eos_live_...> --edgeos-bearer-token <jwt>`
-  Or set each individually:
-  `openclaw config set env.vars.EDGEOS_API_KEY <eos_live_...>` and `openclaw config set env.vars.EDGEOS_BEARER_TOKEN <jwt>`. Restart the gateway.
-- **Claude Code / Cursor / other MCP hosts**: set them in your host's env-var or MCP server config per host conventions.
-
-If either token is missing when the `edgeos` skill is invoked, the agent will stop and ask you to follow this flow.
-
-> **TODO:** Replace `<EDGECITY-ONBOARDING-URL>` with the actual onboarding URL once EdgeCity publishes it. Update this section's prose and bump this skill's `version` patch number when done.
-
----
-
-## 3. Attendee directory field guide
+## 2. Attendee directory field guide
 
 The `edgeos` skill exposes `GET /applications/my/directory/{popup_id}`. Pass the `popup_id` from §1. Each attendee record in `results[]` contains:
 
@@ -91,7 +70,7 @@ Some attendees hide certain fields; hidden values appear as the literal string `
 
 ---
 
-## 4. Event tags (curated for Edge Esmeralda 2026)
+## 3. Event tags (curated for Edge Esmeralda 2026)
 
 When filtering events via the `edgeos` skill's `?tags=...` query, these are the supported values:
 
@@ -101,9 +80,9 @@ Tags are case-sensitive and may be combined: `?tags=AI&tags=Privacy` returns eve
 
 ---
 
-## 5. Reference content (wiki, website, newsletter)
+## 4. Reference content (wiki, website, newsletter)
 
-For questions about logistics, the organization, or announcements, use the preprocessed reference files shipped alongside this skill. When the EdgeClaw installer copies skills into the workspace, these files land under `skills/edge-esmeralda/references/`. If the `references/` directory is present, read the relevant file directly:
+For questions about logistics, the organization, or announcements, use the preprocessed reference files shipped alongside this skill. When the Edge installer copies skills into the workspace, these files land under `skills/edge-esmeralda/references/`. If the `references/` directory is present, read the relevant file directly:
 
 - **`references/wiki-content.md`** — Edge Esmeralda Wiki (tickets, accommodation, travel, venues, health, kids, transport, etc.)
 - **`references/website-content.md`** — Edge City Website (mission, leadership, roadmap, ecosystem, media)
@@ -134,7 +113,7 @@ If the `references/` directory is missing (the upstream CI workflow that generat
 
 ---
 
-## 6. Cross-skill orchestration
+## 5. Cross-skill orchestration
 
 When a user asks about Edge Esmeralda, route the work like this:
 
@@ -145,7 +124,7 @@ When a user asks about Edge Esmeralda, route the work like this:
 
 ---
 
-## 7. Tips for answering well
+## 6. Tips for answering well
 
 - **Default date range** for broad calendar queries: 2026-05-30 to 2026-06-27.
 - **Convert relative dates** ("tomorrow", "this Thursday") to ISO-8601 timestamps with the `America/Los_Angeles` timezone before passing them to the `edgeos` skill's event recipes.

@@ -14,10 +14,8 @@ For backend-agnostic EdgeOS API recipes (events, RSVPs, venues, the directory en
 Set environment variables (the `edgeos` skill needs both; this skill needs none):
 ```bash
 export EDGEOS_API_KEY="eos_live_..."      # Long-lived automation key for events, RSVPs, venues
-export EDGEOS_BEARER_TOKEN="..."          # Human session JWT for directory, own profile, OpenAPI
+export EDGEOS_BEARER_TOKEN="..."          # Human session JWT for directory, own profile
 ```
-
-To obtain both tokens, follow the email-OTP flow at the EdgeCity onboarding page — see `SKILL.md` §2 for the URL placeholder (filled in once EdgeCity publishes it).
 
 ## For Maintainers
 
@@ -38,7 +36,7 @@ This fetches and preprocesses content from:
 - **Edge City website** (edgecity.live) → `references/website-content.md`
 - **Substack newsletter** (edgeesmeralda2026.substack.com) → `references/newsletter-digest.md`
 
-A GitHub Action in `indexnetwork/edgeclaw` runs the indexer every 15 minutes and commits any changes; local runs are only needed when iterating on the indexer code itself.
+A GitHub Action in `Edge-City/agentvillage` runs the indexer every 15 minutes and commits any changes; local runs are only needed when iterating on the indexer code itself.
 
 ### Data Sources
 

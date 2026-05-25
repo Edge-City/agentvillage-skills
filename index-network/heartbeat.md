@@ -1,6 +1,6 @@
 # Index Network — Heartbeat Tasks
 
-Per-tick tasks for Index Network. Walked from the heartbeat tick described in `HEARTBEAT.md`. Track last-run timestamps and dedup state in `memory/heartbeat-state.json`. If a task isn't due, skip it.
+Per-tick tasks for Index Network. Walked from the heartbeat tick described in `AGENTS.md` (Heartbeat section). Track last-run timestamps and dedup state in `memory/heartbeat-state.json`. If a task isn't due, skip it.
 
 ---
 

@@ -6,18 +6,15 @@ author: Edge City
 tags: [edgeos, events, directory, popup-village]
 required_environment_variables:
   - name: EDGEOS_BEARER_TOKEN
-    prompt: EdgeOS bearer token (JWT from email-OTP flow)
-    help: Obtain from the EdgeOS onboarding flow at edgecity.live/agentvillage
-    required_for: directory, own profile, OpenAPI spec
+    required_for: directory, own profile
   - name: EDGEOS_API_KEY
-    prompt: EdgeOS API key (eos_live_...)
-    help: Obtain from the EdgeOS onboarding flow at edgecity.live/agentvillage
     required_for: events, RSVPs, venues
 metadata:
   openclaw:
     requires:
       config:
         - env.vars.EDGEOS_BEARER_TOKEN
+        - env.vars.EDGEOS_API_KEY
 ---
 
 # EdgeOS — Agent Skill
@@ -28,18 +25,10 @@ This skill is popup-agnostic. The `popup_id` (a UUID) is supplied by whichever p
 
 ## 1. Authentication
 
-You need two tokens, both passed as `Authorization: Bearer <token>` (never as the `X-Third-Party-Api-Key` header — that header is only used by EdgeOS's own OTP flow, which this skill does not initiate):
+You need two tokens, both passed as `Authorization: Bearer <token>`:
 
-- **`$EDGEOS_BEARER_TOKEN`** — human session JWT. Required for: `/humans/me`, `/applications/my/directory/{popup_id}`, `/api-keys`, `/openapi.json`. Scopes: `portal:self_read`, `portal:directory_read`, `portal:api_keys_manage`.
-- **`$EDGEOS_API_KEY`** — long-lived `eos_live_...` automation key. Required for events, RSVPs, venues. Gated by EdgeOS to event-automation routes only.
-
-If `$EDGEOS_BEARER_TOKEN` is missing, **stop and ask the user to follow the active operator skill's onboarding flow** before doing anything — every route this skill exposes needs at least the bearer. If only `$EDGEOS_API_KEY` is missing, you can still serve directory lookups, the user's own profile, the OpenAPI spec, and minting a fresh key (§10) — but events, RSVPs, and venue writes will return `401` until the user mints one via the same onboarding flow. Say something like:
-
-> To talk to EdgeOS I need `$EDGEOS_BEARER_TOKEN` and `$EDGEOS_API_KEY` in your environment. The active operator skill (the popup-specific skill loaded alongside this one — `edge-esmeralda` for Edge Esmeralda 2026) explains how to obtain them. Once you have them, set them in your host's env config and try again.
-
-Do not attempt to drive OTP from chat — that flow lives on the operator's onboarding page, not in this skill.
-
-**On `401` with the bearer:** the bearer has likely expired. Tell the user to re-run the operator skill's onboarding flow to obtain a fresh one. Do not retry silently.
+- **`$EDGEOS_BEARER_TOKEN`** — human session JWT. Required for: `/humans/me`, `/applications/my/directory/{popup_id}`. Scopes: `portal:self_read`, `portal:directory_read`.
+- **`$EDGEOS_API_KEY`** — long-lived `eos_live_...` automation key. Required for events, RSVPs, venues.
 
 ## 2. Conventions
 
@@ -234,38 +223,14 @@ curl -s -H "Authorization: Bearer $EDGEOS_BEARER_TOKEN" \
 
 **Privacy:** the attendee response shape and which fields are hidden are popup-curated. Look up the field semantics in the active operator skill, not here. As a universal rule: a field whose value is the literal string `"*"` is intentionally hidden by the attendee — do not infer around it, surface the privacy boundary to the user.
 
-## 10. API keys (`portal:api_keys_manage`)
-
-**Mint a long-lived events-automation API key** (uses the human bearer):
-```bash
-curl -s -X POST -H "Authorization: Bearer $EDGEOS_BEARER_TOKEN" \
-  -H "Content-Type: application/json" \
-  "https://api.edgeos.world/api/v1/api-keys" \
-  -d '{"name":"my-agent","scopes":["events:read","events:write","rsvp:write","venues:write"]}'
-```
-
-The minted key is an `eos_live_...` string. EdgeOS gates it to event-automation routes — it does **not** unlock `/humans/me` or the directory (those continue to require the human bearer).
-
-This is typically done once during the operator's onboarding flow; the skill provides the recipe so the agent can re-mint if a key is lost or revoked.
-
-## 11. Discovery
-
-If you don't know an `event_id`, `venue_id`, or the full OpenAPI surface for a popup-specific filter, the spec is served at:
-
-```bash
-curl -s -H "Authorization: Bearer $EDGEOS_BEARER_TOKEN" \
-  "https://api.edgeos.world/api/v1/openapi.json"
-```
-
-## 12. Tips for answering well
+## 10. Tips for answering well
 
 - **Always use live API calls** for schedule and attendee queries — do not rely on cached or memorized data.
-- **Always check `$EDGEOS_BEARER_TOKEN` and `$EDGEOS_API_KEY` are set before any request.** If either is missing, stop and follow the §1 fallback.
 - **Be specific with dates.** Convert "tomorrow", "this Thursday", "next week" to actual ISO-8601 timestamps with timezone before querying.
 - **Pagination:** events endpoints accept `skip` + `limit` (max 100); the directory uses the same pattern. Loop until `results.length < limit`.
 - **Recurring events:** when RSVPing to one instance, pass `occurrence_start` matching the virtual occurrence's `start_time`.
 
-## 13. What's NOT available
+## 11. What's NOT available
 
 Be honest about these gaps — do not hallucinate answers.
 
@@ -273,5 +238,5 @@ Be honest about these gaps — do not hallucinate answers.
 - **Governance / deliberation.** There is no governance layer on EdgeOS itself. Community discussion happens in the popup's external channels.
 - **Real-time venue availability.** The calendar shows scheduled events, but there is no live venue booking system. To check if a venue is free, list events for that date/time and see whether the venue is already taken.
 - **Application-specific profile fields.** Basic profile fields (`first_name`, `last_name`, `telegram`, `gender`, `age`, `residence`, `picture_url`) are editable via `PATCH /api/v1/humans/me` (see §8). But dietary preferences, application answers, "what I'm building", and popup-specific form fields are **not** patchable through this API — those must be edited in the EdgeOS portal UI under `/portal/profile`. You cannot edit anyone else's profile regardless.
-- **Scheduled tasks / recurring summaries / reminders.** The skill itself cannot schedule anything. In OpenClaw, `openclaw cron` is the scheduler. In Claude Code, `/loop` or `/schedule`. Do not pretend to set up cron jobs from inside the skill.
+- **Scheduled tasks / recurring summaries / reminders.** The skill itself cannot schedule anything. Use the host agent's scheduling capabilities (`/loop`, `/schedule`, cron). Do not pretend to set up tasks from inside the skill.
 - **Outbound messaging / DMs / introductions on behalf of the user.** EdgeOS has no messaging endpoint. Surface contact info (Telegram, X handles) from the directory (§9) and let the user reach out themselves. Do not claim to have sent a message.

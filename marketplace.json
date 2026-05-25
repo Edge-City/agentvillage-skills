@@ -1,11 +1,11 @@
 {
-  "name": "edgeclaw-skills",
+  "name": "agentvillage-skills",
   "interface": {
-    "displayName": "EdgeClaw Skills"
+    "displayName": "AgentVillage Skills"
   },
   "plugins": [
     {
-      "name": "edgeclaw",
+      "name": "agentvillage",
       "source": {
         "source": "local",
         "path": "./"
