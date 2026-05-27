@@ -8,7 +8,7 @@ Three skill bundles that give your agent Edge Esmeralda knowledge and live API a
 
 - **edge-esmeralda** — popup constants (popup id, week dates, themes), attendee directory field semantics, curated wiki/website/newsletter knowledge base, and the onboarding pointer for obtaining EdgeOS tokens.
 - **edgeos** — backend-generic EdgeOS API recipes: events, RSVPs, venues, attendee directory, and your own profile lookup.
-- **index-network** — Index Network discovery: onboarding ritual, opportunity surfacing, voice exemplars, cron prompts for welcome/digest/ambient flows, and heartbeat tasks.
+- **index-network** — Index Network discovery: onboarding ritual, opportunity surfacing, voice exemplars, cron prompts for digest/ambient flows, and heartbeat tasks.
 
 The skills cross-reference each other. `edge-esmeralda` supplies the popup id that `edgeos` recipes need. `index-network` handles discovery and intent-based matching. Install all three together.
 
@@ -35,14 +35,11 @@ If you authenticated through the EdgeOS portal (https://agent-ee26.edgecity.live
 ### Claude Code
 
 ```bash
-export INDEX_API_KEY=<YOUR_API_KEY>
-export EDGEOS_BEARER_TOKEN=<YOUR_TOKEN>
-export EDGEOS_API_KEY=<YOUR_KEY>
 claude plugin marketplace add Edge-City/agentvillage-skills
-claude plugin install agentvillage@agentvillage-skills
+claude plugin install agentvillage@agentvillage-skills --config indexApiKey=<YOUR_API_KEY> --config edgeosToken=<YOUR_TOKEN> --config edgeosApiKey=<YOUR_KEY>
 ```
 
-The plugin manifest declares the Index Network MCP endpoint and resolves `INDEX_API_KEY` from the environment at runtime. No interactive prompt.
+`--config` values are stored in the plugin's `userConfig`. `indexApiKey` is wired to the Index Network MCP server header. A SessionStart hook exports `EDGEOS_API_KEY` and `EDGEOS_BEARER_TOKEN` into every session via `CLAUDE_ENV_FILE`, so the edgeos skill's curl recipes work without manual shell exports.
 
 ### OpenClaw
 
