@@ -4,14 +4,15 @@ Agent skills for **Edge Esmeralda 2026** (May 30 – Jun 27, Healdsburg, CA). Sh
 
 ## What you get
 
-Four skill bundles that give your agent Edge Esmeralda knowledge and live API access:
+Five skill bundles that give your agent Edge Esmeralda knowledge and live API access:
 
 - **edge-esmeralda** — popup constants (popup id, week dates, themes), attendee directory field semantics, curated wiki/website/newsletter knowledge base, and the onboarding pointer for obtaining EdgeOS tokens.
 - **edgeos** — backend-generic EdgeOS API recipes: events, RSVPs, venues, attendee directory, and your own profile lookup.
 - **geo-esmeralda** — Geo knowledge graph access through the Geo CLI package: ontology, fixed graph tools, guarded native read-only queries, and attendee-authored content/photo creation.
 - **index-network** — Index Network discovery: onboarding ritual, opportunity surfacing, voice exemplars, cron prompts for welcome/digest flows, and heartbeat tasks.
+- **cerata-connect** — connection-hunting predator: fire standing "connection vectors" through Index Network, score each candidate's fit, gate on agent-accept, and register the catch. Repeatable, disciplined hunting (perceive → report → confirm) for finding collaborators, filling project roles, and surfacing connectors. Drives the `index-network` engine.
 
-The skills cross-reference each other. `edge-esmeralda` supplies the popup id that `edgeos` recipes need. `geo-esmeralda` handles Geo knowledge graph-backed knowledge and attendee-authored writes, and `index-network` handles discovery and intent-based matching. Install all four together.
+The skills cross-reference each other. `edge-esmeralda` supplies the popup id that `edgeos` recipes need. `geo-esmeralda` handles Geo knowledge graph-backed knowledge and attendee-authored writes, `index-network` handles discovery and intent-based matching, and `cerata-connect` drives `index-network` for repeatable connection hunts. Install them together.
 
 ## Host-specific silence
 
