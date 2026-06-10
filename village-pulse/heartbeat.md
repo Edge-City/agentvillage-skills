@@ -48,7 +48,12 @@ tasks:
   prompt: |
     Run the onboarding profiling flow (§1 of SKILL.md) on first activation after consent.
     1. Read memory/village-pulse.json. If consent not yet given, skip.
-    2. If already profiled (profileCompleted: true), skip.
-    3. Ask 5-7 warm profile questions (what they're here to do, topics, ideal week, etc.)
-    4. POST $VILLAGE_API_BASE_URL/api/village/profile with {human_id, answers:{...}}.
+    2. Check the API — don't rely on local memory alone:
+       GET $VILLAGE_API_BASE_URL/api/village/profile/$VILLAGE_HUMAN_ID
+       If has_profile: true, skip the full survey and show a brief summary; ask if anything needs
+       updating. The API is authoritative — profiles built via Telegram or another agent count.
+    3. If has_profile: false AND profileCompleted is not set in local memory, run the full 5-7 question
+       survey.
+    4. POST $VILLAGE_API_BASE_URL/api/village/profile with {human_id, answers:{...}}, merging new
+       answers over any existing ones (don't wipe data already stored).
     5. Set profileCompleted: true in memory/village-pulse.json.

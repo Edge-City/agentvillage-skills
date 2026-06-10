@@ -46,8 +46,15 @@ Identify the resident with `human_id` = `$VILLAGE_HUMAN_ID` (fall back to the us
   operations exist in this skill — these are the user's own opinions + reads.
 
 ## 1. Onboarding profiling (after consent)
-Run a short, warm profiling survey (5–7 questions: what they're here to do, topics they care about, how
-they like to spend a day, what a great Edge week looks like). Accept audio. Then:
+Before asking anything, call `GET $VILLAGE_API_BASE_URL/api/village/profile/$VILLAGE_HUMAN_ID`.
+- If `has_profile: true` — show a one-line summary of the existing answers (*"You told me: …"*) and ask
+  if there's anything to update. Skip any questions already answered unless the resident wants to revisit
+  them. Profiles built by the Telegram bot or other agents count — the API is the source of truth, not local
+  memory.
+- If `has_profile: false` — run a short, warm survey (5–7 questions: what they're here to do, topics they
+  care about, how they like to spend a day, what a great Edge week looks like). Accept audio.
+
+Either way, merge the new/updated answers over any existing ones and:
 `POST $VILLAGE_API_BASE_URL/api/village/profile` with `{ human_id, answers:{...} }`. This primes the twin;
 predictions start rough and sharpen as input grows — that's expected.
 
