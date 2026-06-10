@@ -4,12 +4,14 @@ Agent skills for **Edge Esmeralda 2026** (May 30 – Jun 27, Healdsburg, CA). Sh
 
 ## What you get
 
-Four skill bundles that give your agent Edge Esmeralda knowledge and live API access:
+Six skill bundles that give your agent Edge Esmeralda knowledge and live API access:
 
 - **edge-esmeralda** — popup constants (popup id, week dates, themes), attendee directory field semantics, curated wiki/website/newsletter knowledge base, and the onboarding pointer for obtaining EdgeOS tokens.
 - **edgeos** — backend-generic EdgeOS API recipes: events, RSVPs, venues, attendee directory, and your own profile lookup.
 - **geo-esmeralda** — Geo knowledge graph access through the Geo CLI package: ontology, fixed graph tools, guarded native read-only queries, and attendee-authored content/photo creation.
 - **index-network** — Index Network discovery: onboarding ritual, opportunity surfacing, voice exemplars, cron prompts for welcome/digest flows, and heartbeat tasks.
+- **cerata-weave** — connector that measures λ, not similarity: reads people through Rose Glass v3 lenses and finds the tables that hold each other's coherence. Requires the external open-source rose-glass-v3 engine.
+- **cerata-reflect** — audits an agent's own Index negotiation history: separates the human's disinterest from the gate's over-rejection, and recovers false-negative connections.
 
 The skills cross-reference each other. `edge-esmeralda` supplies the popup id that `edgeos` recipes need. `geo-esmeralda` handles Geo knowledge graph-backed knowledge and attendee-authored writes, and `index-network` handles discovery and intent-based matching. Install all four together.
 
