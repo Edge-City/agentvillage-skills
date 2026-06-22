@@ -4,14 +4,15 @@ Agent skills for **Edge Esmeralda 2026** (May 30 – Jun 27, Healdsburg, CA). Sh
 
 ## What you get
 
-Four skill bundles that give your agent Edge Esmeralda knowledge and live API access:
+Five skill bundles that give your agent Edge Esmeralda knowledge, live API access, and a personal memory:
 
 - **edge-esmeralda** — popup constants (popup id, week dates, themes), attendee directory field semantics, curated wiki/website/newsletter knowledge base, and the onboarding pointer for obtaining EdgeOS tokens.
 - **edgeos** — backend-generic EdgeOS API recipes: events, RSVPs, venues, attendee directory, and your own profile lookup.
 - **geo-esmeralda** — Geo knowledge graph access through the Geo CLI package: ontology, fixed graph tools, guarded native read-only queries, and attendee-authored content/photo creation.
 - **index-network** — Index Network discovery: onboarding ritual, opportunity surfacing, voice exemplars, cron prompts for welcome/digest flows, and heartbeat tasks.
+- **edge-brain-lite** — personal memory: installs the [edge-brain-lite](https://github.com/antonyevans/edge-brain-lite) second-brain repo on the user's machine (offline, pure Python stdlib, no keys) and runs its guided onboarding interview to seed a personalized, durable memory the agent reads in every future session.
 
-The skills cross-reference each other. `edge-esmeralda` supplies the popup id that `edgeos` recipes need. `geo-esmeralda` handles Geo knowledge graph-backed knowledge and attendee-authored writes, and `index-network` handles discovery and intent-based matching. Install all four together.
+The skills cross-reference each other. `edge-esmeralda` supplies the popup id that `edgeos` recipes need. `geo-esmeralda` handles Geo knowledge graph-backed knowledge and attendee-authored writes, and `index-network` handles discovery and intent-based matching. Install all four together. `edge-brain-lite` is standalone — it needs no tokens and works on any file-aware host.
 
 ## Host-specific silence
 
@@ -73,6 +74,7 @@ hermes skills install Edge-City/agentvillage/skills/edge-esmeralda --force
 hermes skills install Edge-City/agentvillage/skills/edgeos --force
 hermes skills install Edge-City/agentvillage/skills/geo-esmeralda --force
 hermes skills install Edge-City/agentvillage/skills/index-network --force
+hermes skills install Edge-City/agentvillage/skills/edge-brain-lite --force
 ```
 
 Add to `~/.hermes/.env`:
