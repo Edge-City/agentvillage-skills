@@ -99,7 +99,12 @@ test("the job syncs the published tree from the default URL, verified file by fi
   const home = mkdtempSync(join(tmpdir(), "india-consistency-"));
   temps.push(home);
   const server = rawServer();
-  const result = await runKnowledgeSync({ home, env: {}, fetchImpl: server.fetchImpl as never, now: () => new Date("2026-10-11T03:00:00Z") });
+  // The scheduled mirror keeps advancing. Observe this sync after the committed copy,
+  // so refs.ts correctly selects the newer background copy rather than the installed one.
+  const publishedAt = Date.parse(JSON.parse(readFileSync(join(REFERENCES, SNAPSHOT_RECORD_FILE), "utf8")).synced_at);
+  expect(Number.isFinite(publishedAt)).toBe(true);
+  const syncedAt = publishedAt + 60_000;
+  const result = await runKnowledgeSync({ home, env: {}, fetchImpl: server.fetchImpl as never, now: () => new Date(syncedAt) });
   expect(result).toMatchObject({ status: "ok", reason: "written" });
   expect(server.requests).toContain(DEFAULT_SNAPSHOT_URL);
   expect(server.requests).toContain(new URL(SNAPSHOT_RECORD_FILE, DEFAULT_SNAPSHOT_URL).href);
@@ -112,7 +117,7 @@ test("the job syncs the published tree from the default URL, verified file by fi
     knowledgeDir: currentSetDir(home),
     cacheDir: join(home, "cache", "edge-india"),
     env: {},
-    now: () => new Date("2026-10-11T03:10:00Z"),
+    now: () => new Date(syncedAt + 10 * 60_000),
     fetch: refused as unknown as typeof fetch,
   };
   const status = await run(["status"], ctx);
