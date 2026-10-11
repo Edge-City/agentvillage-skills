@@ -4,19 +4,19 @@
   "source": {
     "repo": "p2p-lanes/edge-agent-skill",
     "path": "references",
-    "commit": "35b37e62350db8b015bc4ae5d99b62ea31689c6e",
-    "commit_date": "2026-10-10T12:28:22.000Z"
+    "commit": "60be7054ff24816c55052263e56fb13c596409a8",
+    "commit_date": "2026-10-11T13:13:16.000Z"
   },
-  "synced_at": "2026-10-10T13:55:42.528Z",
+  "synced_at": "2026-10-11T13:17:56.444Z",
   "files": [
     {
       "path": "index.md",
-      "sha256": "cb09eba35dca119ba3efa930f742b5cf1c4431d48db273f3cf0fbcc4f496db15",
+      "sha256": "9180fa0a35d01bff6f1a02f89d03cf5602eaa7980435b72861e0d84ea1bc0ed4",
       "bytes": 5418
     },
     {
       "path": "manifest.json",
-      "sha256": "d74146bdd49c3c880635bba3e501f3fad0f0b0b1bb857cd3588b021842f7b750",
+      "sha256": "e0e8814a66bf6ffe2f4d9f5ba690983ac0aa369c9492922dfd4470212fb47325",
       "bytes": 11401
     },
     {
@@ -116,8 +116,8 @@
     },
     {
       "path": "newsletter/tickets-for-edge-city-india-2026.md",
-      "sha256": "e686db15efc7936d252234aa54f5db3571c50d0358836432a9c9b1a101b76951",
-      "bytes": 8695
+      "sha256": "6de0b8a395bfc48aea8a88de054f159366681121c9ef092c608b60ed63162cc2",
+      "bytes": 8170
     },
     {
       "path": "newsletter/volunteer-at-edge-city-india-2026.md",
