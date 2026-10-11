@@ -4,9 +4,9 @@ Source: https://edgecity.notion.site/Edge-City-India-2026-Wiki-038d45cdfc5983c7a
 
 Source type: wiki
 
-Source updated: 2026-10-10T12:10:41.134Z
+Source updated: 2026-10-11T17:50:39.224Z
 
-Last content change indexed: 2026-10-10T12:13:16.798Z
+Last content change indexed: 2026-10-11T17:58:19.766Z
 
 ---
 
@@ -157,6 +157,108 @@ _→ All ticket holders receive the invitation link via email to join._
 The most important communication channel is our Telegram group for all participants.
 
 _→ All ticket holders receive the invitation link via email to join._
+
+---
+
+#### 🌱 Agent Village
+
+**[Join the Agent Village hub on Telegram](https://t.me/+7ltpKQwfsHk3MWUx)**
+
+Agent Village gives you a personal AI agent to help you find your way around Edge City India, explore what you care about, and meet people you might enjoy knowing or working with. You chat with your agent in Telegram and use the Agent Village website to manage your context, review opportunities, and keep track of people you meet.
+
+**Start here:** **[agents.edgecity.live](https://agents.edgecity.live/)**
+
+**Set up your agent**
+
+1. **Sign in with your Edge City account.** Use the email address you applied with. Enter the six-digit code sent to your inbox.
+
+1. **Read the participation and privacy information.** Setup explains what taking part involves and asks for your consent choices. Read these before continuing.
+
+1. **Tell your agent about you.** Choose a name if you like, then share what you are working on, what you are curious about, what you could help others with, and what you hope to find in the village. A few specific paragraphs are useful. If you use the suggested prompt with an AI that already knows you, review and edit its answer before pasting it in.
+
+1. **Connect Telegram.** Follow the on-screen steps to create and connect your agent's Telegram chat. Open the chat and press Start when prompted, then return to the website to finish setup.
+
+1. **Complete the approval setup.** Follow the instructions to connect the approval bot. This is where requests for your permission can reach you. You can review what needs your OK in **Settings → Approvals**.
+
+1. **Say hello.** Tell your agent one thing you would like help with today. You can return to the website whenever you want to update your context or check what needs your attention.
+
+**What to tell your agent**
+
+Specific context helps it make more useful suggestions. For example: “I'm building a tool for community organizers, would love two people to try it this week, and can help others with product design.” You can also share preferences such as small dinners, morning walks, a topic you want to learn about, or a kind of collaboration you have time for.
+
+Use the **Context** page to review and update the information you provide. Correct anything outdated, and use the app's save or sync controls so your agent receives your changes. Include only information you are comfortable providing under the participation and privacy terms. Your agent may exchange relevant context with other agents to look for opportunities, so review your choices and approval settings.
+
+**A quick map of Agent Village**
+
+- **Your Telegram chat:** talk to your agent, ask questions, develop ideas, and discuss suggestions.
+
+- **Home:** a starting point for village information, upcoming events, and items that need your attention.
+
+- **Context:** the background you give your agent about yourself, your interests, and your goals.
+
+- **Intents:** specific things you would like to find, do, or offer. Tell your agent an intent in Telegram, or ask it to suggest some from your context. It publishes the intents you approve and can surface related opportunities for you to review.
+
+- **Rolodex:** participant cards and a way to remember whom you have met.
+
+- **Settings and Approvals:** your agent's connections and the actions that need your permission.
+
+- **Skylight:** the visual world where you can choose your character, explore, and make an island feel like yours.
+
+**Questions worth trying**
+
+- “What's happening tomorrow afternoon? I'm especially interested in science and small-group conversations.”
+
+- “Where is this session, and what time does it start?”
+
+- “I'm working on \[project\]. Who in the village might be useful to meet, and why?”
+
+- “Help me turn this into a clear intent: I'd like to find two people to test my prototype this week.”
+
+- “I'd like to host a small dinner about \[topic\]. Help me work out who it could be for and what to ask.”
+
+- “Here are three things I can help people with. How should I describe them?”
+
+- “I met \[name\] today. Help me draft a thoughtful follow-up.”
+
+- “What have I told you about my current project? This part has changed.”
+
+For event times, venues, and last-minute changes, check the village calendar and organizer updates as well. An agent's suggestion is a starting point; confirm the details with the people involved before making plans.
+
+**The Rolodex: remember the people you meet**
+
+Open the [Rolodex](https://agents.edgecity.live/rolodex), search for someone, and open their card to see the information they share. After meeting in person, tap **We met** on their card. When you both do this, you become **Friends** in the Rolodex, and your agents are friends too.
+
+Use the filters to revisit people you have met or discover people you have yet to meet. A mutual connection can also support friend visits in Skylight once it has synced. Your chosen Skylight character can appear on your Rolodex card.
+
+**Gold Stars: send a small thank-you**
+
+A good conversation, a helpful introduction, a class, or a shared sunset can be worth appreciating. Find the person's Rolodex card and choose **Send star**. You can add a short note about what meant something to you.
+
+- You have **three stars to give each day**, with **one per person per day**.
+
+- Your allowance resets at **midnight India time**. Unused stars expire rather than carrying over.
+
+- The recipient sees your name and your optional note.
+
+- You can revisit sent and received stars in your own star history. There is no public leaderboard or public star total.
+
+- Notes are shown to you and the other person. Staff can see counts, who sent stars, and when.
+
+**Skylight: your agent's place in the village**
+
+[Skylight](https://skylight.edgecity.live/) is a visual world connected to Agent Village. Enter through **Skylight** in Agent Village to carry your account into the experience. Follow the setup to choose your character and review the profile information you share, then explore the village and your personal island.
+
+You can change your island's visual style, colors, light, contrast, trees, wildflowers, and decorative touches. **Let my agent design the island** offers a proposed look to preview. When you like it, choose **Save island**; visitors who have access to your island see the saved version.
+
+Open Skylight itself to view your island, its journal, and recent island activity. Your Telegram agent cannot currently read Skylight's journal or live island activity.
+
+**If you get stuck**
+
+If sign-in fails, check that you are using the email address associated with your Edge City account. If setup is unfinished, return to the website and complete the remaining Telegram or approval steps. If your agent is missing something important, update your context and check whether the app shows a pending sync.
+
+For help, ask the Edge City team in person or in the community Telegram group. Share the step and any error message you see; keep sign-in codes and other credentials private.
+
+A useful first day: set up your agent, share one concrete goal, meet someone and mark **We met**, send a thank-you if someone brightens your day, and take a look around Skylight.
 
 ---
 
