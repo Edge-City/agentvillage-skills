@@ -69,19 +69,9 @@ const SOURCE_TYPE = "agentvillage";
 const ALLOWED_TOOLS = ["list_intents", "create_intent", "pause_intent"];
 /** The trailer's keys, in this order, nothing else. */
 const TRAILER_KEYS = ["welcome", "fallback", "intents_listed", "intents_seeded", "seed_failed"];
-/** The seeded branch's lead and close, by mode (welcome.ts SEEDED_COPY; the fixtures pin them). */
-const SEEDED = {
-  publish: { lead: "From what you told me at signup, I've set up these signals:", close: "Say change or pause to adjust any of them, or tell me a new one." },
-  paused: { lead: "From what you told me at signup, I've drafted these signals, paused until you say go:", close: "Say go to publish any of them, change or drop to adjust, or tell me a new one." },
-} as const;
-/** The same when the seeded welcome lists exactly one intent, singular throughout (welcome.ts SEEDED_COPY_ONE, DATA-416 Q3; seededOne, seededPausedOne). */
-const SEEDED_ONE = {
-  publish: { lead: "From what you told me at signup, I've set up this signal:", close: "Say change or pause to adjust it, or tell me a new one." },
-  paused: { lead: "From what you told me at signup, I've drafted this signal, paused until you say go:", close: "Say go to publish it, change or drop to adjust, or tell me a new one." },
-} as const;
-type Mode = keyof typeof SEEDED;
+type Mode = "publish" | "paused";
 /** The overlay's cap on the whole welcome (welcome.ts WELCOME_MAX_CHARS). */
-const WELCOME_MAX_CHARS = 1150;
+const WELCOME_MAX_CHARS = W1.WELCOME_MAX_CHARS;
 /**
  * The script's timers, read from it (W1 after its fix round 2: budget 50 s,
  * was 25 s; seed wait 25 s, was 10 s; one create 20 s; the second list's
@@ -114,26 +104,13 @@ const RAISE = "Want advice on raising a seed round in India";
 // ---------------------------------------------------------------------------
 // The texts: built from parts, and the builders first reproduce every pinned text byte for byte.
 
-const intro = (name: string | null) =>
-  name
-    ? `Mandrem, Goa, October 11 to November 1. I'm ${name}, your personal agent for your time in the village.`
-    : "Mandrem, Goa, October 11 to November 1. I'm your personal agent for your time in the village. You can call me Edge, or give me whatever name you like.";
-const keepWatch = (n: number) => `I'll keep watch for people and events that fit ${n === 1 ? "this" : "these"} and bring the best to your morning brief.`;
-
 /** The seeded welcome for `titles`, singular for one (welcome-texts.json seededThree, seededOne, seededPausedThree, seededPausedOne). */
 function seededWelcome(name: string | null, titles: string[], mode: Mode = "publish"): string {
-  const copy = (titles.length === 1 ? SEEDED_ONE : SEEDED)[mode];
-  return ["Welcome to Edge City India ☀️", intro(name), [copy.lead, ...titles.map((t) => `- ${t}`)].join("\n"), keepWatch(titles.length), copy.close].join("\n\n");
+  return W1.welcomeText(name ?? "Edge", { kind: "listed", titles, seeded: mode }, "https://agents.edgecity.live/intents");
 }
 /** Today's listed welcome for one to three `titles` (welcome-texts.json one, two, three). */
 function listedWelcome(name: string | null, titles: string[]): string {
-  return [
-    "Welcome to Edge City India ☀️",
-    intro(name),
-    ["Here's what I have you down for so far:", ...titles.map((t) => `- ${t}`)].join("\n"),
-    keepWatch(titles.length),
-    "To add or change one, use the Intents page in the app (https://agents.edgecity.live/intents) or just tell me.",
-  ].join("\n\n");
+  return W1.welcomeText(name ?? "Edge", { kind: "listed", titles }, "https://agents.edgecity.live/intents");
 }
 
 // ---------------------------------------------------------------------------

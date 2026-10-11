@@ -12,16 +12,15 @@
  *     line each (whole up to TITLE_MAX code points, else cut at a word
  *     boundary, and cut further only when the three together would take the
  *     welcome past WELCOME_MAX_CHARS: fitTitles), what the agent will do with
- *     them, and how to add or change them (the app's Intents page, or just
- *     tell me);
+ *     them, and how to add, change or pause one (just tell me);
  *   - no active intents, and the resident told the app nothing at signup
- *     (hasSetupContext): the app's three Context questions, and a promise to
+ *     (hasSetupContext): under "Your intents", the app's three Context questions and a promise to
  *     turn the answers into intents the resident confirms;
  *   - no active intents, but the resident did tell the app something at
  *     signup: CONTEXT_COPY, which says the agent read it and asks what to
  *     look for first, never the three questions again;
  *   - no key, Index unreachable or an answer it cannot read: the welcome
- *     without the list, saying it will catch up in the morning brief.
+ *     without the list, saying it cannot load the intents right now.
  *
  * DATA-412 / DATA-416: the seed. When no welcome was sent yet (the welcome
  * marker below, read in both modes), that read succeeds and lists no active
@@ -36,7 +35,7 @@
  * `AV_WELCOME_SEED_MODE=paused` pauses each one it created (`pause_intent`).
  * It then lists the intents again (the creates leave it
  * WELCOME_RELIST_RESERVE_MS of the budget) and the welcome names the seeded
- * ones first ("From what you told me at signup, ..."); the marker then gets
+ * ones first ("Based on what you shared at signup, ..."); the marker then gets
  * `done`. A run that finds the marker already there, whatever its first list
  * showed (another run's creates may have landed only in part), waits while it
  * lacks `done` and then lists again, so its welcome shows what was seeded.
@@ -104,13 +103,12 @@ export const MAX_LISTED = 3;
 export const TITLE_MAX = 300;
 /**
  * Characters (UTF-16 code units, JavaScript's `.length`) of the whole welcome
- * at most. The control plane uses the scripted welcome only when it is
- * shorter than 1200 (control-plane/src/telegram-onboarding.js
- * WELCOME_MAX_CHARS) and otherwise sends its fixed greeting, so this stays
- * below that with room to spare. welcomeText holds every welcome to it: the
- * listed titles share what the rest of the text leaves (fitTitles).
+ * at most. The coordinated control-plane delivery cap is 2100, leaving room
+ * below Telegram's 4096-character message limit. welcomeText holds every
+ * welcome to this smaller generator cap: the listed titles share what the
+ * rest of the text leaves (fitTitles).
  */
-export const WELCOME_MAX_CHARS = 1150;
+export const WELCOME_MAX_CHARS = 2000;
 /**
  * Characters of the Intents link at most: a longer one (an AV_CONNECTIONS_URL
  * host of absurd length) gives way to the default host's, so the link can
@@ -181,24 +179,24 @@ export const SETUP_HEADINGS = [CONTEXT_HEADING, SELECTED_HEADING, FOLLOW_UP_HEAD
 /** The lead and closing sentence of a welcome that seeded intents and lists two or more, by mode. */
 export const SEEDED_COPY = {
   publish: {
-    lead: "From what you told me at signup, I've set up these signals:",
-    close: "Say change or pause to adjust any of them, or tell me a new one.",
+    lead: "Based on what you shared at signup, these intents are active:",
+    close: "Tell me if you'd like to add, change, or pause an intent.",
   },
   paused: {
-    lead: "From what you told me at signup, I've drafted these signals, paused until you say go:",
-    close: "Say go to publish any of them, change or drop to adjust, or tell me a new one.",
+    lead: "Based on what you shared at signup, these intents are paused:",
+    close: "Tell me when you'd like to publish, change, or drop one, or add a new intent.",
   },
 } as const;
 
 /** The same when the seeded welcome lists exactly one intent: singular throughout (DATA-416 Q3). */
 export const SEEDED_COPY_ONE = {
   publish: {
-    lead: "From what you told me at signup, I've set up this signal:",
-    close: "Say change or pause to adjust it, or tell me a new one.",
+    lead: "Based on what you shared at signup, this intent is active:",
+    close: "Tell me if you'd like to add, change, or pause an intent.",
   },
   paused: {
-    lead: "From what you told me at signup, I've drafted this signal, paused until you say go:",
-    close: "Say go to publish it, change or drop to adjust, or tell me a new one.",
+    lead: "Based on what you shared at signup, this intent is paused:",
+    close: "Tell me when you'd like to publish, change, or drop it, or add a new intent.",
   },
 } as const;
 
@@ -220,8 +218,8 @@ export const CONTEXT_QUESTIONS = [
  * control plane's WELCOME_BRANCHES reads it).
  */
 export const CONTEXT_COPY = {
-  lead: "I've read what you shared when you signed up. Tell me what you'd like me to look for first, and I'll turn it into intents you can confirm.",
-  close: "Then I'll look for people and events that fit and bring the best to your morning brief.",
+  lead: "I've read what you shared at signup, but you don't have an active intent yet. Tell me what you'd like me to look for first.",
+  close: "I'll turn it into an intent for you to confirm, then look for people and events that fit.",
 } as const;
 
 /** How the seed leaves what it creates: published (the default), or paused until the resident says go. */
@@ -734,38 +732,51 @@ export function welcomeText(name: string, read: IntentsRead, intentsUrl: string,
 
 /** The welcome's text with `listed` as the intent lines (the listed branch only); `context` as welcomeText's. */
 function composeWelcome(name: string, read: IntentsRead, intentsUrl: string, listed: string[], context = false): string {
-  const intro =
-    name === DEFAULT_NAME
-      ? "Mandrem, Goa, October 11 to November 1. I'm your personal agent for your time in the village. You can call me Edge, or give me whatever name you like."
-      : `Mandrem, Goa, October 11 to November 1. I'm ${name}, your personal agent for your time in the village.`;
-  const parts = ["Welcome to Edge City India ☀️", intro];
+  const intro = `I'm ${name}, your personal agent for Edge City India. It's a pleasure to meet you.`;
+  const questions = [
+    "What can you ask me?",
+    "• What events are happening tomorrow?",
+    "• Please RSVP me to [event name] on the calendar.",
+    "You can also send me Telegram voice notes.",
+  ].join("\n");
+  const appHomeUrl = new URL("/", intentsUrl).href;
+  const onboarding = [
+    "To complete your onboarding",
+    `Explore the Agent Village app: ${appHomeUrl}`,
+    "",
+    "1) Rolodex: browse people and track who you've met.",
+    "2) Send someone a gold star to show gratitude (three per day).",
+    "3) Skylight: make an avatar for me in the virtual village.",
+  ].join("\n");
+  const parts = ["Welcome to Edge City India ☀️", intro, questions, onboarding];
   if (read.kind === "unreachable") {
     parts.push(
-      "I can't see what you're here for just yet, so I'll catch up and bring people and events that fit to your morning brief.",
-      "Meanwhile, tell me what you're looking for, or ask me anything about the village.",
+      "Your intents\nI can't load your intents right now. Tell me what you're looking for, and I'll still help you find relevant people and events.",
     );
   } else if (read.titles.length === 0 && context) {
-    parts.push(CONTEXT_COPY.lead, CONTEXT_COPY.close);
+    parts.push(["Your intents", CONTEXT_COPY.lead].join("\n"), CONTEXT_COPY.close);
   } else if (read.titles.length === 0) {
     parts.push(
-      ["To find your people, I'd love three quick answers, a line or two each:", ...CONTEXT_QUESTIONS.map((q) => `- ${q}`)].join("\n"),
-      "I'll turn your answers into intents you can confirm, then look for people and events that fit and bring the best to your morning brief.",
+      ["Your intents", "You don't have an active intent yet. To help me find the right people and events, answer any of these:", "", ...CONTEXT_QUESTIONS.map((q) => `- ${q}`)].join("\n"),
+      "I'll turn your answers into intents for you to confirm.",
     );
   } else if (read.seeded) {
     const copy = (listed.length === 1 ? SEEDED_COPY_ONE : SEEDED_COPY)[read.seeded];
     parts.push(
-      [copy.lead, ...listed.map((t) => `- ${t}`)].join("\n"),
-      `I'll keep watch for people and events that fit ${listed.length === 1 ? "this" : "these"} and bring the best to your morning brief.`,
-      copy.close,
+      ["Your intents", copy.lead, "", ...listed.map((t) => `- ${t}`)].join("\n"),
+      read.seeded === "paused"
+        ? `${listed.length === 1 ? "This intent" : "These intents"} will stay paused until you tell me to publish ${listed.length === 1 ? "it" : "them"}.`
+        : `I'll use ${listed.length === 1 ? "this" : "these"} to look for relevant people and events. ${copy.close}`,
+      ...(read.seeded === "paused" ? [copy.close] : []),
     );
   } else {
-    const lead = read.titles.length > MAX_LISTED ? "Here are three of the things I have you down for:" : "Here's what I have you down for so far:";
+    const lead = read.titles.length > MAX_LISTED ? "Your intents\nHere are three of them:" : "Your intents";
     parts.push(
-      [lead, ...listed.map((t) => `- ${t}`)].join("\n"),
-      `I'll keep watch for people and events that fit ${listed.length === 1 ? "this" : "these"} and bring the best to your morning brief.`,
-      `To add or change one, use the Intents page in the app (${intentsUrl}) or just tell me.`,
+      [lead, "", ...listed.map((t) => `- ${t}`)].join("\n"),
+      `I'll use ${listed.length === 1 ? "this" : "these"} to look for relevant people and events. Tell me if you'd like to add, change, or pause an intent.`,
     );
   }
+  parts.push("I'm excited for our time at Edge City India together!");
   return parts.join("\n\n");
 }
 

@@ -362,25 +362,17 @@ describe("the seed: zero active intents and selected intentions → up to three 
     const { text, branch, calls } = await run(fakeIndex());
     expect(creates(calls).map((c) => c.arguments)).toEqual([{ description: KEPT[0].text, sourceType: SEED_SOURCE_TYPE }]);
     expect(text).toBe(golden.seededOne);
-    expect(text).toContain(`\n\n${SEEDED_COPY_ONE.publish.lead}\n- ${KEPT[0].text}\n\n`);
-    expect(text.endsWith(`\n\n${SEEDED_COPY_ONE.publish.close}`)).toBe(true);
+    expect(text).toContain(`\n${SEEDED_COPY_ONE.publish.lead}\n\n- ${KEPT[0].text}\n\n`);
+    expect(text).toContain(`people and events. ${SEEDED_COPY_ONE.publish.close}\n\n`);
     expect(text).not.toMatch(/these signals|any of them/);
     expect(branch).toEqual({ fallback: "none", intents_listed: 1, intents_seeded: 1, seed_failed: 0 });
   });
 
-  test("two selected: the plural sentences, byte for byte as before (DATA-416 Q3)", async () => {
+  test("two selected: the plural seeded copy", async () => {
     writeUserMd(profileText(draftWith(2)));
     const { text, branch } = await run(fakeIndex());
     expect(branch).toEqual({ fallback: "none", intents_listed: 2, intents_seeded: 2, seed_failed: 0 });
-    expect(text).toBe(
-      [
-        "Welcome to Edge City India ☀️",
-        "Mandrem, Goa, October 11 to November 1. I'm your personal agent for your time in the village. You can call me Edge, or give me whatever name you like.",
-        `From what you told me at signup, I've set up these signals:\n- ${KEPT[0].text}\n- ${KEPT[1].text}`,
-        "I'll keep watch for people and events that fit these and bring the best to your morning brief.",
-        "Say change or pause to adjust any of them, or tell me a new one.",
-      ].join("\n\n"),
-    );
+    expect(text).toBe(welcomeText("Edge", { kind: "listed", titles: KEPT.slice(0, 2).map((k) => k.text), seeded: "publish" }, INTENTS_URL));
   });
 
   test("paused mode, one selected: the paused singular sentences (DATA-416 Q3)", async () => {
@@ -389,8 +381,8 @@ describe("the seed: zero active intents and selected intentions → up to three 
     const { text, branch, names } = await run(fakeIndex(), ["--draft"]);
     expect(names).toEqual(["list_intents", "create_intent", "pause_intent", "list_intents"]);
     expect(text).toBe(golden.seededPausedOne);
-    expect(text).toContain(`\n\n${SEEDED_COPY_ONE.paused.lead}\n- ${KEPT[0].text}\n\n`);
-    expect(text.endsWith(`\n\n${SEEDED_COPY_ONE.paused.close}`)).toBe(true);
+    expect(text).toContain(`\n${SEEDED_COPY_ONE.paused.lead}\n\n- ${KEPT[0].text}\n\n`);
+    expect(text).toContain(`\n\n${SEEDED_COPY_ONE.paused.close}\n\n`);
     expect(branch).toEqual({ fallback: "none", intents_listed: 1, intents_seeded: 1, seed_failed: 0 });
   });
 
@@ -451,7 +443,7 @@ describe("the seed: zero active intents and selected intentions → up to three 
       expect(creates(calls).map((c) => c.arguments?.description)).toEqual(KEPT.slice(0, 3).map((k) => k.text));
       expect(branch).toEqual({ fallback: "none", intents_listed: 2, intents_seeded: 2, seed_failed: 1 });
       expect(listedLines(text)).toEqual([KEPT[0].text, KEPT[2].text]);
-      expect(text).toContain(`\n\n${SEEDED_COPY.publish.lead}\n`);
+      expect(text).toContain(`\n${SEEDED_COPY.publish.lead}\n`);
       expect(seedMarker()).toMatchObject({ selected: 3, created: 2, failed: 1 });
     });
   }
@@ -727,7 +719,7 @@ describe("the seed marker: the creates run once per box, in both modes", () => {
     const plain = await run(index);
     expect(creates(plain.calls)).toHaveLength(3);
     // Three active intents now: today's listed text, and the welcome marker claimed.
-    expect(plain.text).toContain("Here's what I have you down for so far:");
+    expect(plain.text).toContain("\n\nYour intents\n");
     expect(existsSync(join(home, WELCOME_STATE_FILE))).toBe(true);
     expect((await run(index)).text).toBe(ALREADY_SENT);
   });
@@ -848,7 +840,7 @@ describe("the seed marker: the creates run once per box, in both modes", () => {
     // The second run created nothing, waited, and listed all three.
     expect(secondNames).toEqual(["list_intents", "list_intents"]);
     expect(late.branch).toEqual({ fallback: "none", intents_listed: 3, intents_seeded: 0, seed_failed: 0 });
-    expect(late.text).toContain("\n\nHere's what I have you down for so far:\n");
+    expect(late.text).toContain("\n\nYour intents\n");
     expect([...listedLines(late.text)].sort()).toEqual(KEPT.slice(0, 3).map((k) => k.text).sort());
     // One claim (the first run's, never rewritten by the second) and three creates in all.
     expect(creates(index.fake.calls)).toHaveLength(3);
@@ -1030,7 +1022,7 @@ describe("AV_WELCOME_SEED_MODE=paused: create, then pause each one created", () 
     expect(branch).toEqual({ fallback: "none", intents_listed: 2, intents_seeded: 2, seed_failed: 1 });
     // The paused lead names only what it paused.
     expect(listedLines(text)).toEqual([KEPT[0].text, KEPT[2].text]);
-    expect(text).toContain(`\n\n${SEEDED_COPY.paused.lead}\n`);
+    expect(text).toContain(`\n${SEEDED_COPY.paused.lead}\n`);
   });
 
   test("a pause that fails counts its line as failed", async () => {
@@ -1039,7 +1031,7 @@ describe("AV_WELCOME_SEED_MODE=paused: create, then pause each one created", () 
     const { names, branch, text } = await run(fakeIndex({ pause: () => toolError("cannot pause") }), ["--draft"]);
     expect(names).toEqual(["list_intents", "create_intent", "pause_intent", "list_intents"]);
     expect(branch).toEqual({ fallback: "none", intents_listed: 1, intents_seeded: 0, seed_failed: 1 });
-    expect(text).toContain("Here's what I have you down for so far:");
+    expect(text).toContain("\n\nYour intents\n");
   });
 });
 
@@ -1085,59 +1077,58 @@ describe("the answers the seed reads", () => {
 // ── The texts ────────────────────────────────────────────────────────────────
 
 describe("the seeded texts", () => {
-  test("the six older fixture texts are byte for byte as on origin/main, and the plural seeded ones as DATA-412 wrote them; the four seeded keys and `context` are there", () => {
-    const sha = (text: string) => new Bun.CryptoHasher("sha256").update(text).digest("hex");
-    const raw = readFileSync(FIXTURE_PATH, "utf8");
-    const fixture = JSON.parse(raw) as Record<string, string>;
-    expect(sha(OLD_KEYS.map((k) => fixture[k]).join(""))).toBe(OLD_SHA256);
-    for (const [key, hash] of Object.entries(SEEDED_SHA256)) expect({ key, hash: sha(fixture[key]) }).toEqual({ key, hash });
+  test("the fixture carries every listed, seeded, paused and fallback branch", () => {
+    const fixture = JSON.parse(readFileSync(FIXTURE_PATH, "utf8")) as Record<string, string>;
     expect(Object.keys(fixture)).toEqual([...OLD_KEYS, "seededThree", "seededOne", "seededPausedThree", "seededPausedOne", "context"]);
-    expect(sha(raw)).toBe(FIXTURE_SHA256);
+    for (const text of Object.values(fixture)) {
+      expect(text).toContain("What can you ask me?");
+      expect(text).toContain("To complete your onboarding");
+      expect(text).toContain("\n\nYour intents\n");
+      expect(text.length).toBeLessThanOrEqual(WELCOME_MAX_CHARS);
+    }
   });
 
   test("the seeded welcome's parts, exactly", () => {
     const three = KEPT.slice(0, 3).map((k) => k.text);
     for (const mode of ["publish", "paused"] as const) {
       const text = welcomeText("Mira", { kind: "listed", titles: three, seeded: mode }, INTENTS_URL);
-      expect(text.split("\n\n")).toEqual([
-        "Welcome to Edge City India ☀️",
-        "Mandrem, Goa, October 11 to November 1. I'm Mira, your personal agent for your time in the village.",
-        [SEEDED_COPY[mode].lead, ...three.map((t) => `- ${t}`)].join("\n"),
-        "I'll keep watch for people and events that fit these and bring the best to your morning brief.",
-        SEEDED_COPY[mode].close,
-      ]);
+      expect(text).toBe(golden[mode === "paused" ? "seededPausedThree" : "seededThree"]);
+      expect(text).toContain(`Explore the Agent Village app: https://agents.edgecity.live/\n\n1) Rolodex`);
+      expect(text).toContain(`${SEEDED_COPY[mode].lead}\n\n- ${three[0]}`);
       expect(text).not.toContain("Intents page");
     }
     expect(SEEDED_COPY.publish).toEqual({
-      lead: "From what you told me at signup, I've set up these signals:",
-      close: "Say change or pause to adjust any of them, or tell me a new one.",
+      lead: "Based on what you shared at signup, these intents are active:",
+      close: "Tell me if you'd like to add, change, or pause an intent.",
     });
     expect(SEEDED_COPY.paused).toEqual({
-      lead: "From what you told me at signup, I've drafted these signals, paused until you say go:",
-      close: "Say go to publish any of them, change or drop to adjust, or tell me a new one.",
+      lead: "Based on what you shared at signup, these intents are paused:",
+      close: "Tell me when you'd like to publish, change, or drop one, or add a new intent.",
     });
-    expect(welcomeText("Edge", { kind: "listed", titles: ["One"], seeded: "publish" }, INTENTS_URL)).toContain("fit this and bring");
+    expect(welcomeText("Edge", { kind: "listed", titles: ["One"], seeded: "publish" }, INTENTS_URL)).toContain("use this to look");
   });
 
   test("DATA-416 Q3: exactly one listed title takes the singular sentences in both modes; two or more the plural ones", () => {
     expect(SEEDED_COPY_ONE.publish).toEqual({
-      lead: "From what you told me at signup, I've set up this signal:",
-      close: "Say change or pause to adjust it, or tell me a new one.",
+      lead: "Based on what you shared at signup, this intent is active:",
+      close: "Tell me if you'd like to add, change, or pause an intent.",
     });
     expect(SEEDED_COPY_ONE.paused).toEqual({
-      lead: "From what you told me at signup, I've drafted this signal, paused until you say go:",
-      close: "Say go to publish it, change or drop to adjust, or tell me a new one.",
+      lead: "Based on what you shared at signup, this intent is paused:",
+      close: "Tell me when you'd like to publish, change, or drop it, or add a new intent.",
     });
     for (const mode of ["publish", "paused"] as const) {
-      expect(welcomeText("Mira", { kind: "listed", titles: ["One want"], seeded: mode }, INTENTS_URL).split("\n\n").slice(2)).toEqual([
-        `${SEEDED_COPY_ONE[mode].lead}\n- One want`,
-        "I'll keep watch for people and events that fit this and bring the best to your morning brief.",
-        SEEDED_COPY_ONE[mode].close,
-      ]);
+      const one = welcomeText("Mira", { kind: "listed", titles: ["One want"], seeded: mode }, INTENTS_URL);
+      expect(one).toContain(`Your intents\n${SEEDED_COPY_ONE[mode].lead}\n\n- One want`);
+      expect(one).toContain(
+        mode === "paused"
+          ? `This intent will stay paused until you tell me to publish it.\n\n${SEEDED_COPY_ONE[mode].close}`
+          : `I'll use this to look for relevant people and events. ${SEEDED_COPY_ONE[mode].close}`,
+      );
       for (const titles of [["One want", "Two want"], ["One want", "Two want", "Three want"], ["One want", "Two want", "Three want", "Four want"]]) {
         const parts = welcomeText("Mira", { kind: "listed", titles, seeded: mode }, INTENTS_URL).split("\n\n");
-        expect(parts[2].split("\n")[0]).toBe(SEEDED_COPY[mode].lead);
-        expect(parts[4]).toBe(SEEDED_COPY[mode].close);
+        expect(parts.join("\n\n")).toContain(`${SEEDED_COPY[mode].lead}\n\n- One want`);
+        expect(parts.join("\n\n")).toContain(mode === "paused" ? SEEDED_COPY[mode].close : `people and events. ${SEEDED_COPY[mode].close}`);
       }
     }
   });
@@ -1161,7 +1152,7 @@ describe("the seeded texts", () => {
         expect({ mode, label, length: text.length <= WELCOME_MAX_CHARS }).toEqual({ mode, label, length: true });
         const listed = listedLines(text);
         expect(listed).toHaveLength(MAX_LISTED);
-        for (const line of listed) expect(line.endsWith("…")).toBe(true);
+        for (const line of listed) expect([...line].length).toBeLessThanOrEqual(TITLE_MAX);
       }
     }
   });
