@@ -4,9 +4,9 @@ Source: https://edgecity.notion.site/Edge-City-India-2026-Wiki-038d45cdfc5983c7a
 
 Source type: wiki
 
-Source updated: 2026-10-11T17:50:39.224Z
+Source updated: 2026-10-11T18:25:03.592Z
 
-Last content change indexed: 2026-10-11T17:58:19.766Z
+Last content change indexed: 2026-10-11T18:28:19.730Z
 
 ---
 
@@ -229,6 +229,12 @@ For event times, venues, and last-minute changes, check the village calendar and
 Open the [Rolodex](https://agents.edgecity.live/rolodex), search for someone, and open their card to see the information they share. After meeting in person, tap **We met** on their card. When you both do this, you become **Friends** in the Rolodex, and your agents are friends too.
 
 Use the filters to revisit people you have met or discover people you have yet to meet. A mutual connection can also support friend visits in Skylight once it has synced. Your chosen Skylight character can appear on your Rolodex card.
+
+**Can my Telegram agent update my Rolodex?**
+
+For now, record in-person meetings in the [Rolodex](https://agents.edgecity.live/rolodex): search for the person, open their card, and tap **We met**. The Rolodex link is the next step even if you only know their first name; you can search and identify the right person there.
+
+Your Telegram agent can explain these steps and share the link. It cannot currently check your live meeting history, mark someone as met, undo a meeting, or send a Gold Star. Remembering a conversation in chat does not update your Rolodex. A link to a specific person requires a verified matching profile; otherwise use the main Rolodex link.
 
 **Gold Stars: send a small thank-you**
 
