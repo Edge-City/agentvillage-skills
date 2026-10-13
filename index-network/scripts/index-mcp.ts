@@ -196,11 +196,11 @@ export async function indexMcpRequest(
   return result;
 }
 
-/** The one `create_intent` refusal callIndexTool hands back instead of throwing (SEED-REVISION). */
+/** Index's refusal code for a line it wants clearer (SEED-REVISION): the one non-2xx create the welcome keeps for the resident. */
 export const INTENT_NEEDS_REVISION = "intent_needs_revision";
 
 /**
- * SEED-REVISION: Index's admission verdict said no to a `create_intent`.
+ * SEED-REVISION: Index said no to a create because of the line itself.
  * `feedback` is Index's model-written text about the line, raw (the caller
  * cleans it before it goes anywhere), or null when the answer has none;
  * `keys` the top-level key names of Index's answer (identifier-shaped ones
@@ -215,13 +215,15 @@ const REFUSAL_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 const REFUSAL_KEYS_MAX = 20;
 
 /**
- * The refusal a `create_intent` answer's text holds, or null. Index sends
- * (services/api mcp.tools.ts `mcpError`, read from its source; no live body
- * seen yet) `{"success":false,"code":"intent_needs_revision","error":...,
+ * The refusal a create answer's text holds, or null. Index's MCP
+ * `create_intent` sends (services/api mcp.tools.ts `mcpError`, read from its
+ * source) `{"success":false,"code":"intent_needs_revision","error":...,
  * "feedback":...,"proposedPayload":...,"recovery":...}`, the whole text, or
- * after a markdown lead line (toolJsonObject). Only that code, and only an
- * object whose `success` is not true, is a refusal; anything else, a body
- * that does not parse included, is null. Pure.
+ * after a markdown lead line (toolJsonObject); its REST create (a91c3ff) never
+ * answers that code, and createIntentDirect reads a non-2xx body with it the
+ * same way. Only that code, and only an object whose `success` is not true,
+ * is a refusal; anything else, a body that does not parse included, is null.
+ * Pure.
  */
 export function intentRefusal(text: string): IntentRefusal | null {
   let root: Record<string, unknown> | null = null;
@@ -250,27 +252,10 @@ function firstText(result: Record<string, unknown>): string | null {
  * Call one Index tool and return the text of its first `type: "text"` content
  * item. A result flagged `isError` throws `mcp-tool-error`; a result without
  * a text item throws `mcp-bad-response`.
- *
- * SEED-REVISION: for `create_intent` only, an `isError` result whose text is
- * Index's `intent_needs_revision` refusal (intentRefusal) is returned as an
- * IntentRefusal instead of thrown, so the welcome can keep the refused line.
- * Every other `isError` result, for that tool or any other, a malformed
- * refusal body included, still throws `mcp-tool-error`.
  */
-export async function callIndexTool(target: IndexMcpTarget, name: "create_intent", args?: Record<string, unknown>): Promise<string | IntentRefusal>;
-export async function callIndexTool(target: IndexMcpTarget, name: string, args?: Record<string, unknown>): Promise<string>;
-export async function callIndexTool(
-  target: IndexMcpTarget,
-  name: string,
-  args: Record<string, unknown> = {},
-): Promise<string | IntentRefusal> {
+export async function callIndexTool(target: IndexMcpTarget, name: string, args: Record<string, unknown> = {}): Promise<string> {
   const result = await indexMcpRequest(target, "tools/call", { name, arguments: args });
-  if (result.isError === true) {
-    const text = name === "create_intent" ? firstText(result) : null;
-    const refusal = text === null ? null : intentRefusal(text);
-    if (refusal) return refusal;
-    throw new IndexMcpError("mcp-tool-error");
-  }
+  if (result.isError === true) throw new IndexMcpError("mcp-tool-error");
   const text = firstText(result);
   if (text === null) throw new IndexMcpError("mcp-bad-response");
   return text;
@@ -346,74 +331,170 @@ export function toolJsonArray(text: string, key: string): unknown[] {
   return list;
 }
 
-// ── SEED-REJECT part 3b: Index's admission verdict before a create ──────────
-
-/** The code a seed line records when `prepare` could not be read and the create ran without it (release gate (5)). */
-export const PREPARE_UNAVAILABLE = "prepare_unavailable";
-
-/** One of Index's recovery questions, raw (the caller cleans every text before it goes anywhere). */
-export type RecoveryQuestion = { kind: "single" | "multi" | "text"; question: string; options: string[] };
+// ── The welcome's seed: one direct create on Index's REST API ───────────────
 
 /**
- * Index's `POST /api/intents/prepare` answer (services/api intent.controller.ts
- * `prepare`; protocol intent.preparer.ts PrepareResult): `ready`, or
- * `needs_revision` with Index's `feedback` (raw) and its `recovery` questions
- * (raw), plus the answer's top-level key names (identifier-shaped, never a
- * value).
+ * `sourceType` on every intent the overlay creates (the av-events plugin's
+ * SOURCE_TYPE). For this source type and no `preparationReceipt`, Index
+ * stores the description as written and skips admission (Index source
+ * a91c3ff, services/api intent.service.ts `create`).
  */
-export type PrepareVerdict =
-  | { status: "ready" }
-  | { status: "needs_revision"; feedback: string | null; recovery: RecoveryQuestion[]; keys: string[] };
+export const AGENTVILLAGE_SOURCE_TYPE = "agentvillage";
 
-const RECOVERY_KINDS = ["single", "multi", "text"] as const;
+/** One of Index's recovery questions, raw (the REFUSED_SEEDS reader's type; no shipped roll wrote one into a seed marker). */
+export type RecoveryQuestion = { kind: "single" | "multi" | "text"; question: string; options: string[] };
 
-/** `prepare`'s REST URL: `$INDEX_API_URL` (an origin, or `<origin>/api`) when set, else the MCP URL's origin. */
-export function indexPrepareUrl(mcpUrl: string): string {
-  const configured = process.env.INDEX_API_URL?.trim();
-  const origin = configured ? configured.replace(/\/+$/, "").replace(/\/api$/, "") : new URL(mcpUrl).origin;
-  return `${origin}/api/intents/prepare`;
+/** An intent id Index issues: a UUID, or the hex short id (the av-events plugin's INTENT_PATH_ID). */
+const INTENT_ID = /^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{4,32})$/;
+
+/** Plain http is allowed to these hosts only (the av-events plugin's LOOPBACK_HOSTS). */
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+/** `$INDEX_API_URL` may name the origin, or `<origin>/api` (the plugin's _API_URL_PATHS); no other path. */
+const API_URL_PATHS = ["", "/", "/api", "/api/"];
+/** The MCP URL's own path, when the create's origin is taken from it (the plugin's `_origin_from_mcp_url`). */
+const MCP_URL_PATHS = ["/mcp", "/mcp/"];
+/** A host the plugin's `_host_ok` takes, when not a bracketed IPv6 literal. */
+const HOSTNAME = /^[A-Za-z0-9.-]+$/;
+/** What Python's `str.strip()` strips (the plugin reads `env(API_URL_ENV).strip()`). */
+const PY_STRIP = /^[\t\n\v\f\r\x1c-\x1f \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\t\n\v\f\r\x1c-\x1f \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g;
+
+/** Whether `host` is an IPv6 literal (the plugin's `ipaddress.IPv6Address`; a zone id is refused here). */
+function ipv6(host: string): boolean {
+  if (!/^[0-9A-Fa-f:.]+$/.test(host) || !host.includes(":")) return false;
+  try {
+    new URL(`http://[${host}]/`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
- * One `prepare` (Index runs its admission verdict and creates NOTHING) for
- * `payload`, sent exactly as given. Same key, `x-api-key`; one request, no
- * retry, the target's timeout, no redirect. Throws
- * IndexMcpError(PREPARE_UNAVAILABLE) on anything that is not an HTTP 200 JSON
- * answer whose `status` is `ready` or `needs_revision`: a transport failure,
- * a timeout, another status, a body that does not parse.
+ * `scheme://netloc` of `url` when it is an Index origin the key may be sent
+ * to, else null: the av-events plugin's `_origin` (_record_intention.py
+ * :535-561, refutation A1), ported rule for rule, over a port of the parts
+ * of Python's `urlsplit` it reads: no `?` or `#` anywhere in the raw string;
+ * no control character or space; then (as urlsplit) a scheme, `//`, the
+ * netloc up to the first `/`, `?` or `#`, and the path; no userinfo (an `@`
+ * in the netloc); the host after the last `@` either a bracketed IPv6
+ * literal (zone ids refused: stricter than the plugin) or of `[A-Za-z0-9.-]`
+ * only; a port, if any, of ASCII digits 0-65535; a path in `paths`; https,
+ * or plain http to a loopback host only. The origin is rebuilt from the
+ * scheme (lower-cased) and the netloc alone, so nothing else in the string
+ * reaches a request. Pure.
  */
-export async function prepareIntent(target: IndexMcpTarget, payload: string): Promise<PrepareVerdict> {
+export function indexOrigin(url: string, paths: readonly string[]): string | null {
+  if (url.includes("?") || url.includes("#")) return null;
+  for (const ch of url) {
+    const code = ch.codePointAt(0)!;
+    if (code <= 0x20 || code === 0x7f) return null;
+  }
+  // urlsplit: leading C0 controls and spaces stripped, tab and newlines removed (a no-op after the check above).
+  const raw = url.replace(/^[\x00-\x20]+/, "").replace(/[\t\r\n]/g, "");
+  const split = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)/s.exec(raw);
+  if (!split) return null;
+  const scheme = split[1]!.toLowerCase();
+  const netloc = split[2]!;
+  const path = split[3]!;
+  if (netloc.includes("[") !== netloc.includes("]")) return null;
+  // urlsplit's _hostinfo: the host and port after the last `@`.
+  const hostinfo = netloc.slice(netloc.lastIndexOf("@") + 1);
+  let hostname: string;
+  let port: string;
+  const bracket = hostinfo.indexOf("[");
+  if (bracket >= 0) {
+    const inside = hostinfo.slice(bracket + 1);
+    const close = inside.indexOf("]");
+    hostname = close >= 0 ? inside.slice(0, close) : inside;
+    const after = close >= 0 ? inside.slice(close + 1) : "";
+    port = after.includes(":") ? after.slice(after.indexOf(":") + 1) : "";
+  } else {
+    const colon = hostinfo.indexOf(":");
+    hostname = colon >= 0 ? hostinfo.slice(0, colon) : hostinfo;
+    port = colon >= 0 ? hostinfo.slice(colon + 1) : "";
+  }
+  if (port !== "" && (!/^[0-9]+$/.test(port) || Number(port) > 65535)) return null;
+  if (!hostname || netloc.includes("@")) return null;
+  // _host_ok
+  if (hostinfo.startsWith("[") ? !ipv6(hostname) : !HOSTNAME.test(hostname)) return null;
+  if (!paths.includes(path)) return null;
+  if (scheme === "https" || (scheme === "http" && LOOPBACK_HOSTS.has(hostname.toLowerCase()))) return `${scheme}://${netloc}`;
+  return null;
+}
+
+/**
+ * Index's REST create URL, `<origin>/api/intents`, or null when no origin
+ * passes indexOrigin (then no create is sent and the key goes nowhere new).
+ * The origin: `$INDEX_API_URL` (stripped as the plugin strips it) when it is
+ * not blank, an origin or `<origin>/api`, never falling back when it is set
+ * but refused; else the MCP URL's, when that URL is `<origin>/mcp` (the
+ * plugin's api_origin and CREATE_PATH). Unlike the plugin's
+ * `_origin_from_mcp_url`, plain http to a loopback MCP URL is kept: the MCP
+ * calls already go there with the same key.
+ */
+export function indexCreateUrl(mcpUrl: string): string | null {
+  const configured = (process.env.INDEX_API_URL ?? "").replace(PY_STRIP, "");
+  const origin = configured ? indexOrigin(configured, API_URL_PATHS) : indexOrigin(mcpUrl, MCP_URL_PATHS);
+  return origin === null ? null : `${origin}/api/intents`;
+}
+
+/**
+ * One direct create's outcome: a 2xx answer (Index's id when the answer
+ * names one it could have issued, else null: then whatever answered may not
+ * be Index and may have stored nothing, so the caller counts that line only
+ * when Index lists it), or not, with the HTTP status (0: no answer: a
+ * transport failure, a refused redirect, `timedOut`, or `badUrl`: no origin
+ * passed indexOrigin, so nothing was sent) and, only when the body is
+ * Index's `intent_needs_revision` refusal (intentRefusal), that refusal.
+ */
+export type DirectCreate =
+  | { ok: true; id: string | null }
+  | { ok: false; status: number; refusal: IntentRefusal | null; timedOut?: boolean; badUrl?: true };
+
+/**
+ * One `POST <origin>/api/intents` with `{description, sourceType:
+ * "agentvillage"}` and nothing else: no `preparationReceipt` (Index then
+ * stores the line as written and runs no admission), no `networkIds` (shared
+ * in every network the resident is in). `description` is sent exactly as
+ * given. Same key as every Index call, `x-api-key`; JSON only; one request,
+ * no retry, the target's timeout, no redirect. The shape is the av-events
+ * plugin's production create (`_record_intention.py` publish_intent) and
+ * Index's controller (intent.controller.ts `create`, a91c3ff). Never throws:
+ * any HTTP answer is a status, a transport failure or timeout is status 0;
+ * a URL indexCreateUrl refuses is status 0 with `badUrl`, and no request.
+ */
+export async function createIntentDirect(target: IndexMcpTarget, description: string): Promise<DirectCreate> {
+  const url = indexCreateUrl(target.mcpUrl);
+  if (url === null) return { ok: false, status: 0, refusal: null, badUrl: true };
   const send = target.fetch ?? globalThis.fetch;
-  let body: Record<string, unknown> | null;
+  let res: Response;
   try {
-    const res = await send(indexPrepareUrl(target.mcpUrl), {
+    res = await send(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "x-api-key": target.apiKey },
-      body: JSON.stringify({ payload }),
+      body: JSON.stringify({ description, sourceType: AGENTVILLAGE_SOURCE_TYPE }),
       redirect: "error",
       signal: AbortSignal.timeout(target.timeoutMs ?? INDEX_MCP_TIMEOUT_MS),
     });
-    if (res.status !== 200) throw new Error("status");
-    body = asRecord(await res.json());
+  } catch (err) {
+    return { ok: false, status: 0, refusal: null, timedOut: isAbort(err) };
+  }
+  if (res.status >= 200 && res.status < 300) {
+    // A 2xx: the id when the answer names one Index could have issued; without one, the caller asks Index's list.
+    let id: string | null = null;
+    try {
+      const intentId = asRecord(await res.json())?.intentId;
+      id = typeof intentId === "string" && INTENT_ID.test(intentId) ? intentId : null;
+    } catch {
+      // No body, or not JSON: id unknown.
+    }
+    return { ok: true, id };
+  }
+  let text = "";
+  try {
+    text = await res.text();
   } catch {
-    throw new IndexMcpError(PREPARE_UNAVAILABLE);
+    // The status alone is the answer.
   }
-  if (body?.status === "ready") return { status: "ready" };
-  if (body?.status !== "needs_revision") throw new IndexMcpError(PREPARE_UNAVAILABLE);
-  const recovery: RecoveryQuestion[] = [];
-  for (const item of Array.isArray(body.recovery) ? body.recovery : []) {
-    const field = asRecord(item);
-    const kind = RECOVERY_KINDS.find((k) => k === field?.kind);
-    if (!field || !kind || typeof field.label !== "string") continue;
-    const options = (Array.isArray(field.options) ? field.options : [])
-      .map((o) => (typeof o === "string" ? o : asRecord(o)?.label))
-      .filter((o): o is string => typeof o === "string");
-    recovery.push({ kind, question: field.label, options: kind === "text" ? [] : options });
-  }
-  return {
-    status: "needs_revision",
-    feedback: typeof body.feedback === "string" ? body.feedback : null,
-    recovery,
-    keys: Object.keys(body).filter((key) => REFUSAL_KEY.test(key)).slice(0, REFUSAL_KEYS_MAX),
-  };
+  return { ok: false, status: res.status, refusal: text ? intentRefusal(text) : null };
 }
