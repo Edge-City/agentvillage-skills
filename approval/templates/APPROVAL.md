@@ -330,10 +330,10 @@ classes:
   treasury.withdraw:             { autonomy: manual, agent_may_request: true }   # DATA-292, a resident's own proposal withdrawn by their agent's suggestion
   edgeos.event.write:            { autonomy: manual, agent_may_request: true }   # reserved; no tool uses this class before Oct 18; DATA-322
   edgeos.venue.write:            { autonomy: manual, agent_may_request: true }   # reserved; no tool uses this class before Oct 18; DATA-322
-  # The village marketplace (reserved namespace marketplace.*) and the model reviewer: reserved, R2.
-  marketplace.app.install:       { autonomy: manual, agent_may_request: true }   # reserved; installing an agentic app or MCP server from the village marketplace
-  marketplace.app.action:        { autonomy: manual, agent_may_request: true }   # reserved; an installed app acting for the agent; the request payload names the app and the verb
-  marketplace.app.read:          { autonomy: autonomous, agent_may_request: true }   # reserved; an installed app reads for the agent; recorded
+  # Curated mini-apps. Install intent is managed by the authenticated control plane.
+  marketplace.app.install:       { autonomy: manual, agent_may_request: true }
+  marketplace.app.action:        { autonomy: manual, agent_may_request: true }   # Gold Stars: immutable exact preview; native propose/wait/start required
+  marketplace.app.read:          { autonomy: autonomous, agent_may_request: true }   # village read/staging transport; recorded; effects gated internally
   review.delegate.model:         { autonomy: manual }   # reserved; the resident may choose later to let a model reviewer act first; nothing acts on it today; no agent request
   resource.allocate:             { autonomy: manual, agent_may_request: true }   # reserved; the treasury/ODS allocation class: an allocation of village resources proposed for the resident
   opportunity.accept:            { autonomy: autonomous, agent_may_request: true }   # reserved; accepting or declining an Index opportunity (a connection or meeting) on the resident's behalf; Index's tools for it reach it through the hook; R3
@@ -377,6 +377,8 @@ tools:
   - { match: skill_manage,                     class: skill.manage }
   - { match: delegate_task,                    class: agent.delegate }
   - { match: send_message,                     class: message.send }
+  # Village records read/staging here; native effects separately propose marketplace.app.action.
+  - { match: village,                          class: marketplace.app.read }
   # Reading the web.
   - { match: web_search,                       class: read.web }
   - { match: web_extract,                      class: read.web }
