@@ -103,9 +103,9 @@
  * refused line again; `--draft` never prints the block.
  */
 
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { DEFAULT_NAME, agentName, readProfile } from "../../agent-profile/scripts/profile";
 import {
@@ -122,10 +122,10 @@ import {
   toolJsonArray,
   toolJsonObject,
 } from "./index-mcp";
-import { contextHolds, contextTagsState } from "./context-tags";
+import { type ContextTags, contextHolds, contextTagsState } from "./context-tags";
 import { DEFAULT_CONNECTIONS_URL, cleanTitle, connectionsUrl, cronScanHit, cutAtWord, envOrDotenv } from "./proactive-text";
 import { type GuardHit, QUESTION_MAX, questionGuardHit } from "./question-guard";
-import { acquireStateLock } from "./state-lock";
+import { type HeldLock, acquireStateLock, tryAcquireLock } from "./state-lock";
 
 /** The marker, relative to `$HERMES_HOME` (install/welcome_state.ts WELCOME_STATE_RELATIVE_PATH). */
 export const WELCOME_STATE_FILE = join("memory", "welcome-state.json");
@@ -1112,6 +1112,16 @@ function shownQuestion(row: Record<string, unknown>, line: string): { kind: Reco
 }
 
 /**
+ * SEED-REVISION S1: the resident still has `line`, by the Context tags entry
+ * of `memories/USER.md` (contextHolds; `absent`, no entry: nothing was ever
+ * removed). The first turn's REFUSED_SEEDS block (surfaceRefusedSeeds) and
+ * `--reseed`'s fallback (reseedLines) both ask this. Pure.
+ */
+function residentHolds(context: ContextTags | "absent", line: string): boolean {
+  return context === "absent" || contextHolds(context, line);
+}
+
+/**
  * The REFUSED_SEEDS line, or null when there is nothing to print. It names
  * ONE refused line (REFUSED_SHOWN_MAX): the first not yet surfaced, in the
  * resident's order, that the resident still has (S1: checked against the
@@ -1144,7 +1154,7 @@ export async function surfaceRefusedSeeds(home: string, now: Date = new Date()):
       for (const i of pending) {
         const row = record(held.refused[i])!;
         const line = refusedLine(row.line)!;
-        if (context !== "absent" && !contextHolds(context, line)) {
+        if (!residentHolds(context, line)) {
           marks.set(i, { surfacedAt: at, notShown: "gone" });
         } else if (shown.length >= REFUSED_SHOWN_MAX) {
           marks.set(i, { surfacedAt: at, notShown: "cap" });
@@ -1211,6 +1221,274 @@ export function claimWelcome(home: string, now: Date = new Date()): boolean {
  * `waitMs` and `pollMs` replace WELCOME_BUDGET_MS, WELCOME_RELIST_RESERVE_MS,
  * WELCOME_SEED_WAIT_MS and WELCOME_SEED_POLL_MS.
  */
+
+// ── SEED-REJECT 3b: --reseed, the operator's one-shot second seed ────────────
+
+/** The operator's flag: seed again for a box whose welcome seeded nothing (Carter's ruling (4), 12 Oct 2026). */
+export const RESEED_FLAG = "--reseed";
+/** Each `--reseed` run's own marker, relative to `$HERMES_HOME`: `memory/welcome-reseed-<time>.json`. */
+export const WELCOME_RESEED_PREFIX = join("memory", "welcome-reseed-");
+/**
+ * Gap G2: `--reseed --dry-run` prepares each line a run would send and
+ * creates and writes nothing (reseedRun). Alone, `--dry-run` means the same
+ * (never a real welcome).
+ */
+export const DRY_RUN_FLAG = "--dry-run";
+/** Gap G2: `--reseed --again` runs although an earlier `--reseed` left its marker (reseedRan). */
+export const AGAIN_FLAG = "--again";
+/** Gap G2: the code a real `--reseed` leaves, alone, when an earlier one already ran on this box: nothing listed, prepared, created or written. */
+export const RESEED_ALREADY_RAN = "reseed_already_ran";
+/** Gap G2: a dry run's code for a line Index's `prepare` answers `ready` (a real run would create it). */
+export const PREPARE_READY = "ready";
+/** The code a `--reseed` (or `--dry-run`) leaves, alone, when reseedLines finds no line: no Index call, nothing written. */
+export const RESEED_NO_LINES = "no_lines";
+/** The code a real `--reseed` leaves, alone, when another one holds WELCOME_RESEED_LOCK: no Index call, nothing written. */
+export const RESEED_IN_PROGRESS = "reseed_in_progress";
+/** A real `--reseed` holds this lock (tryAcquireLock), relative to `$HERMES_HOME`, from before it lists until its marker is written. */
+export const WELCOME_RESEED_LOCK = join("memory", "welcome-reseed.lock");
+/** A WELCOME_RESEED_LOCK older than this is a run that was killed: taken over (its budget, twice). */
+const RESEED_LOCK_STALE_MS = 2 * WELCOME_BUDGET_MS;
+
+/**
+ * True when a `--reseed` already sent lines here: a
+ * WELCOME_RESEED_PREFIX<time>.json marker with `created + failed > 0`, or one
+ * that cannot be read as such (fail closed: `--again` overrides). A run that
+ * sent nothing writes no marker, and an older zero-count one does not count.
+ * Never throws.
+ */
+export function reseedRan(home: string): boolean {
+  const dir = join(home, dirname(WELCOME_RESEED_PREFIX));
+  const name = basename(WELCOME_RESEED_PREFIX);
+  try {
+    return readdirSync(dir).some((f) => f.startsWith(name) && f.endsWith(".json") && reseedSent(join(dir, f)));
+  } catch {
+    return false;
+  }
+}
+
+/** Whether the reseed marker at `path` records a run that sent a line (`created + failed > 0`); unreadable counts as sent. Never throws. */
+function reseedSent(path: string): boolean {
+  try {
+    const marker = record(JSON.parse(readFileSync(path, "utf8")));
+    const created = marker?.created;
+    const failed = marker?.failed;
+    if (typeof created !== "number" || typeof failed !== "number") return true;
+    return created + failed > 0;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * The lines a `--reseed` sends (and a `--dry-run` prepares): the profile's
+ * selected intentions as the welcome's seed reads them (selectedIntentions,
+ * verbatim), else, since the app leaves that section out once Telegram is
+ * paired, the lines Index refused at the welcome (the seed marker's
+ * `refused`, ov#302), as recorded, filtered exactly as the first turn's
+ * reader filters them (surfaceRefusedSeeds, SEED-REVISION S1): never an entry
+ * the reader marked `notShown: "gone"`, never a line the Context tags no
+ * longer hold or list under "Removed by you" (residentHolds), and none at all
+ * when the tags are unreadable (fail closed). Never rewritten, trimmed or
+ * composed. Never throws.
+ */
+export function reseedLines(home: string): string[] {
+  const selected = selectedIntentions(home);
+  if (selected.length) return selected;
+  try {
+    const marker = record(JSON.parse(readFileSync(join(home, WELCOME_SEED_FILE), "utf8")));
+    const refused = Array.isArray(marker?.refused) ? marker.refused : [];
+    if (refused.length === 0) return [];
+    const context = contextTagsState(home);
+    if (context === "unreadable") return [];
+    return refused.flatMap((entry) => {
+      const row = record(entry);
+      const line = refusedLine(row?.line);
+      if (!row || line === null || row.notShown === "gone" || !residentHolds(context, line)) return [];
+      return [row.line as string];
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * `--reseed`: whatever welcome-state.json and the seed marker say (neither is
+ * read for permission nor written), read reseedLines first (none: RESEED_NO_LINES,
+ * no Index call, nothing written), take WELCOME_RESEED_LOCK (held by another
+ * run: RESEED_IN_PROGRESS, no Index call, nothing written), list, then seed
+ * (seedLines: prepare first, create only on ready, refusals kept) up to
+ * MAX_LISTED of those lines that are not already listed in Index (seedKey,
+ * any status), and, when a line was sent, write a new marker
+ * WELCOME_RESEED_PREFIX<time>.json with the counts, the codes and the refused
+ * lines, then release the lock. A run that sends nothing (every line listed,
+ * the list unavailable, no key) writes no marker. A refused line also goes
+ * into the seed marker's `refused` (mergeReseedRefused, gap G1), so the first
+ * chat turn's REFUSED_SEEDS block asks the resident about it. Gap G2: when an
+ * earlier `--reseed` sent lines (reseedRan, checked again under the lock), a
+ * run does nothing at all and leaves RESEED_ALREADY_RAN, unless `again`; with
+ * `dryRun` (never refused, no lock) it lists, then prepares the same lines
+ * (prepareLines) and creates and writes nothing, its codes those a run would
+ * leave. The branch for the operator's trailer. Never throws.
+ */
+export async function reseedRun(home: string, options: WelcomeOptions = {}, flags: { dryRun?: boolean; again?: boolean } = {}): Promise<WelcomeBranch> {
+  const now = options.now ?? new Date();
+  const alone = (code: string): WelcomeBranch => ({ ...welcomeBranch(UNREACHABLE), seed_codes: [code] });
+  let claim: HeldLock | null = null;
+  try {
+    if (!flags.dryRun && !flags.again && reseedRan(home)) return alone(RESEED_ALREADY_RAN);
+    const all = reseedLines(home);
+    if (all.length === 0) return alone(RESEED_NO_LINES);
+    if (!flags.dryRun) {
+      claim = tryAcquireLock(join(home, WELCOME_RESEED_LOCK), { staleMs: RESEED_LOCK_STALE_MS });
+      if (claim === null) return alone(RESEED_IN_PROGRESS);
+      // Under the lock: a run that finished just before this one took it has left its marker.
+      if (!flags.again && reseedRan(home)) return alone(RESEED_ALREADY_RAN);
+    }
+    const clock: Clock = {
+      deadline: Date.now() + (options.budgetMs ?? WELCOME_BUDGET_MS),
+      cap: options.timeoutMs,
+      reserve: options.reserveMs ?? WELCOME_RELIST_RESERVE_MS,
+      wait: 0,
+      poll: options.pollMs ?? WELCOME_SEED_POLL_MS,
+    };
+    const target: IndexMcpTarget = { apiKey: envOrDotenv("INDEX_API_KEY", home), mcpUrl: indexMcpUrl(), fetch: options.fetch };
+    const first = await listIntents({ ...target, timeoutMs: options.timeoutMs ?? WELCOME_INDEX_TIMEOUT_MS });
+    // Nothing sent: no marker, so the run-once guard is not spent.
+    if (!first.rows) return alone("list-unavailable");
+    const sent = new Set(first.rows.flatMap((row) => row.keys));
+    const lines: SeedLineInput[] = [];
+    for (const text of all) {
+      if (lines.length === MAX_LISTED) break;
+      const key = seedKey(text);
+      if (key === null || sent.has(key)) continue;
+      sent.add(key);
+      lines.push({ text, title: cleanTitle(text, TITLE_MAX, "word")!, key });
+    }
+    if (lines.length === 0) return welcomeBranch(first.read);
+    if (flags.dryRun) return welcomeBranch(first.read, await prepareLines(target, clock, lines));
+    const { again, seeded, failed, refused, codes, kinds } = await seedLines(home, target, clock, lines, now);
+    const counts = { selected: all.length, created: seeded.length, failed };
+    const merged = refused.length ? await mergeReseedRefused(home, now, refused, counts) : null;
+    recordReseed(home, now, { ...counts, codes, refused, ...(merged === null ? {} : { refusedMerged: merged }) });
+    const read = again.read.kind === "listed" ? again.read : first.read;
+    return welcomeBranch(read, { intents_seeded: seeded.length, seed_failed: failed, seed_codes: codes, seed_recovery_kinds: kinds });
+  } catch {
+    return alone("error");
+  } finally {
+    claim?.release();
+  }
+}
+
+/**
+ * Gap G2, `--dry-run`: one `prepare` per line (prepareIntent: creates
+ * nothing), all at once, within the run's budget, no retry, the line exactly
+ * as reseedLines read it; never a create, never a write. The counts a dry run
+ * reports: nothing seeded or failed, `seed_codes` one per line in order
+ * (PREPARE_READY, `intent_needs_revision:<category>` as seedOne would leave
+ * it, PREPARE_UNAVAILABLE, BUDGET_EXHAUSTED; seedCode-shaped, at most
+ * SEED_CODES_MAX) and `seed_recovery_kinds` (the kinds of Index's questions
+ * for the refused lines as the marker would keep them, recoveryQuestions; at
+ * most SEED_RECOVERY_KINDS_MAX). Never throws.
+ */
+async function prepareLines(target: IndexMcpTarget, clock: Clock, lines: SeedLineInput[]): Promise<SeedCounts> {
+  const verdicts = await Promise.allSettled(
+    lines.map(async (line): Promise<{ code: string; kinds: RecoveryQuestion["kind"][] }> => {
+      const prepareTarget = timed(target, clock, WELCOME_SEED_TIMEOUT_MS, clock.reserve);
+      if (!prepareTarget) return { code: BUDGET_EXHAUSTED, kinds: [] };
+      try {
+        const verdict = await prepareIntent(prepareTarget, line.text);
+        if (verdict.status !== "needs_revision") return { code: PREPARE_READY, kinds: [] };
+        return { code: `${INTENT_NEEDS_REVISION}:${admissionCategory(verdict.feedback)}`, kinds: recoveryQuestions(verdict.recovery).map((q) => q.kind) };
+      } catch {
+        return { code: PREPARE_UNAVAILABLE, kinds: [] };
+      }
+    }),
+  );
+  const codes: string[] = [];
+  const kinds: RecoveryQuestion["kind"][] = [];
+  for (const v of verdicts) {
+    const one = v.status === "fulfilled" ? v.value : { code: "error", kinds: [] };
+    const shaped = seedCode(one.code);
+    if (shaped !== null && codes.length < SEED_CODES_MAX) codes.push(shaped);
+    kinds.push(...one.kinds);
+  }
+  return { intents_seeded: 0, seed_failed: 0, seed_codes: codes, seed_recovery_kinds: kinds.slice(0, SEED_RECOVERY_KINDS_MAX) };
+}
+
+/**
+ * Gap G1 (context@b3, RESEED-RESEND.md): the lines a `--reseed` saw refused,
+ * merged into the seed marker's `refused` (ov#302's list, which the first chat
+ * turn's REFUSED_SEEDS block reads; surfaceRefusedSeeds), each entry exactly
+ * as the welcome's seed keeps one (refusedSeed) and never `surfacedAt`, so the
+ * block names it at the resident's next session. An entry for the same line
+ * (as kept, refusedLine) is replaced by the new one in its place, its
+ * `surfacedAt`, `notShown` and `questionWithheld` gone with it; other entries
+ * stay as they are. Under the marker's lock (surfaceRefusedSeeds's), temp file
+ * and rename. A done marker keeps its fields; a marker left claimed (no
+ * `done`) is completed with `done: true` unless it is younger than
+ * RESEED_SEED_BUSY_MS (a welcome seeding right now, whose own write would
+ * drop the entries: left alone); no marker, or one that is not a JSON object,
+ * becomes recordSeed's shape with this run's counts. True when the entries
+ * were written. Never throws.
+ */
+async function mergeReseedRefused(home: string, now: Date, refused: RefusedSeed[], counts: { selected: number; created: number; failed: number }): Promise<boolean> {
+  try {
+    const path = join(home, WELCOME_SEED_FILE);
+    const lock = await acquireStateLock(path, { waitMs: REFUSED_LOCK_WAIT_MS, staleMs: REFUSED_LOCK_STALE_MS });
+    try {
+      let marker: Record<string, unknown> | null = null;
+      try {
+        marker = record(JSON.parse(readFileSync(path, "utf8")));
+      } catch {
+        // No marker, or not JSON: written whole below.
+      }
+      if (marker && marker.done !== true) {
+        const claimed = typeof marker.seededAt === "string" ? Date.parse(marker.seededAt) : Number.NaN;
+        if (Number.isFinite(claimed) && now.getTime() - claimed < RESEED_SEED_BUSY_MS) return false;
+      }
+      const list: unknown[] = Array.isArray(marker?.refused) ? [...marker.refused] : [];
+      for (const entry of refused) {
+        const same = list.flatMap((e, i) => (record(e)?.line === entry.line ? [i] : []));
+        if (same.length === 0) {
+          list.push(entry);
+          continue;
+        }
+        list[same[0]!] = entry;
+        for (const i of same.slice(1).reverse()) list.splice(i, 1);
+      }
+      replaceSeedMarker(
+        home,
+        marker
+          ? `${JSON.stringify({ ...marker, done: true, refused: list })}\n`
+          : seedBody(now, counts.selected, counts.created, counts.failed, true, list as RefusedSeed[]),
+      );
+      return true;
+    } finally {
+      lock.release();
+    }
+  } catch {
+    return false;
+  }
+}
+
+/** A seed marker without `done` younger than this is a welcome seeding now (its budget, twice): mergeReseedRefused leaves it alone. */
+const RESEED_SEED_BUSY_MS = 2 * WELCOME_BUDGET_MS;
+
+/**
+ * The `--reseed` run's own marker (0600, a new file each run that sent a line), with
+ * `refusedMerged` when it saw refused lines (whether mergeReseedRefused wrote
+ * them into the seed marker); never touches welcome-state.json. Never throws.
+ */
+function recordReseed(home: string, now: Date, body: { selected: number; created: number; failed: number; codes: string[]; refused: RefusedSeed[]; refusedMerged?: boolean }): void {
+  try {
+    const path = join(home, `${WELCOME_RESEED_PREFIX}${now.toISOString().replace(/[:.]/g, "-")}.json`);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${JSON.stringify({ reseededAt: now.toISOString(), ...body, ...(body.refused.length ? {} : { refused: undefined }) })}\n`, { mode: 0o600 });
+  } catch {
+    // Nothing to keep: the trailer still says what happened.
+  }
+}
+
 type WelcomeOptions = {
   fetch?: typeof fetch;
   timeoutMs?: number;
@@ -1229,6 +1507,10 @@ type WelcomeOptions = {
  */
 export async function welcomeRun(argv: string[], options: WelcomeOptions = {}): Promise<{ text: string; branch: WelcomeBranch | null }> {
   const home = homeFrom(argv);
+  // `--dry-run` alone is `--reseed --dry-run` (gap G2): never a real welcome.
+  if (argv.includes(RESEED_FLAG) || argv.includes(DRY_RUN_FLAG)) {
+    return { text: "", branch: await reseedRun(home, options, { dryRun: argv.includes(DRY_RUN_FLAG), again: argv.includes(AGAIN_FLAG) }) };
+  }
   const draft = argv.includes("--draft");
   const welcomed = welcomeAlreadySent(home);
   if (!draft && welcomed) return { text: await alreadySentText(home, options.now ?? new Date()), branch: null };
@@ -1277,8 +1559,10 @@ export async function main(
   } catch {
     out = { text: welcomeText(DEFAULT_NAME, UNREACHABLE, intentsPageUrl(homeFrom(argv))), branch: welcomeBranch(UNREACHABLE) };
   }
-  io.stdout(`${out.text}\n`);
-  if (argv.includes("--draft") && out.branch) io.stderr(`${draftTrailer(out.branch, seedTrailerV2(homeFrom(argv)))}\n`);
+  // `--reseed` (SEED-REJECT 3b) prints nothing for the resident, and its trailer, both extra keys included, for the operator.
+  const reseed = argv.includes(RESEED_FLAG) || argv.includes(DRY_RUN_FLAG);
+  if (!reseed) io.stdout(`${out.text}\n`);
+  if ((reseed || argv.includes("--draft")) && out.branch) io.stderr(`${draftTrailer(out.branch, reseed || seedTrailerV2(homeFrom(argv)))}\n`);
 }
 
 if (import.meta.main) {
