@@ -25,7 +25,9 @@ Two more bundles are **opt-in and Hermes-only**, and are not part of the set abo
 install also carries the owner's Rolodex meeting mark/undo and Skylight status
 read used by `rolodex` and `skylight`), `dizko` (public discovery through a
 reviewed MCP proxy), and `fourkicks` (live café menu/schedule and exact-preview,
-manually approved orders with validated UPI links or card at pickup).
+manually approved orders with returned UPI links or card at pickup). UPI receipts
+name SWISSDESI (Four Kicks' UPI), the exact amount and order note, and say the café
+will check payment at pickup. Orders queue immediately; queued never means paid.
 The overlay's `install/install_miniapps.ts` stages these source directories
 from the control plane's validated installed projection; its reviewed bundle
 must include `fourkicks` version `1.0.0`, skill `["fourkicks"]`, and exactly
