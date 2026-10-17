@@ -249,7 +249,7 @@ describe("the evening note (B), the follow-up's Waiting on you rows (C) and the 
   test("D: the pending alert's entry gains only an optional match.headline; without one it is unchanged", () => {
     const now = new Date("2026-10-12T09:30:00Z");
     const due = (c: Partial<BriefOpportunity>) => ({ card: { name: "Asha", opportunityId: "a1", status: "pending", mainText: SUMMARY, ...c } as BriefOpportunity, opportunityId: "a1", firstSeen: now.toISOString() });
-    const plain = { name: "Asha", profileUrl: null, appUrl: "https://agents.edgecity.live/intents?opportunity=a1#opportunity-a1", acceptUrl: null, opportunityId: "a1", firstSeen: now.toISOString(), respondBy: null };
+    const plain = { name: "Asha", profileUrl: null, appUrl: "https://agents.edgecity.live/intents-v2?opportunity=a1", acceptUrl: null, opportunityId: "a1", firstSeen: now.toISOString(), respondBy: null };
     expect((pendingView([due({})], now).view as { cards: unknown[] }).cards).toEqual([plain]);
     expect((pendingView([due({ headline: "memory systems", matchedIntentText: "x" } as never)], now).view as { cards: unknown[] }).cards).toEqual([{ ...plain, match: { headline: "memory systems" } }]);
     const blocked = pendingView([due({ headline: "system prompt override" })], now);
@@ -283,10 +283,10 @@ const NAME_LEAD =
 /** The drop carries LEAVE_OUT once, as its own bullet after both kinds (a community ask names the headline too). */
 const DROP_NAME_RULE = `${NAME_LEAD} ${TOPIC_RULE} ${DATA_RULE} When \`you.intent\` is missing, say nothing about it.`;
 const NAME_RULE = `${NAME_LEAD} ${TOPIC_RULE} ${LEAVE_OUT} ${DATA_RULE} When \`you.intent\` is missing, say nothing about it.`;
-/** What the message link does once ov#298 is in (the app's /intro page, its wording): honest, never an unconditional "opens Telegram". */
-const HONEST = (whom: string) => `opens Agent Village, where one tap accepts the introduction and, once you have both accepted, opens Telegram with ${whom}`;
-/** The exemplars' form of it (ov#298's wording). */
-const EXEMPLAR_HONEST = "opens Agent Village, where one tap accepts; once you have both accepted, it opens Telegram with them";
+/** What the message link does (RC-11, CD-03 C: the accepter can message at once), tools.md's wording: never "once you have both accepted, opens Telegram". */
+const HONEST = (whom: string) => `opens Agent Village, where one tap accepts the introduction and lets you message ${whom}`;
+/** The exemplars' form of it. */
+const EXEMPLAR_HONEST = "opens Agent Village, where one tap accepts and lets you message them";
 
 describe("prompt text: name the match before the link, one honest link sentence, no padding", () => {
   test("the no-padding rule, once, in the drop, the evening note, the follow-up and the pending alert", () => {
@@ -356,7 +356,7 @@ describe("prompt text: name the match before the link, one honest link sentence,
     // Fix round 1 (refute M2): the raw chat headline is never copied (opportunity-copy.test.ts pins the rule's full text).
     expect(tools).not.toMatch(/headline`?[^.\n]*copied as returned/);
     expect(tools).not.toContain("about <headline>");
-    // INTENTS-RELINK (G4): since cp#263 / app#308 the accepter can message at once; tools.md says so (the prompts keep HONEST).
+    // INTENTS-RELINK (G4): since cp#263 / app#308 the accepter can message at once; tools.md says so, and so do the prompts (HONEST, CD-03 C).
     expect(count(tools, "Opening a message link opens Agent Village, where one tap accepts the introduction and lets you message them: say so in one sentence before the list, never as a look or a preview.")).toBe(1);
     expect(count(tools, 'Say nothing the tool result does not state: no reassurance or status sentence, such as "nothing has gone out yet" or "without your say-so".')).toBe(1);
     const start = exemplars.indexOf('## Asked in chat: "any intros?"');
