@@ -1,7 +1,7 @@
 ---
 name: fourkicks
 description: Read Four Kicks' live café menu and schedule, preview an order with its exact total and shared display name, and place it only after the resident approves. Optional first-party mini-app; UPI links are validated by the server and card orders use pay-at-pickup honor rules.
-version: 1.0.0
+version: 1.0.1
 author: Edge City
 ---
 
@@ -76,6 +76,13 @@ payee `Four Kicks`, and amount equal to the approved quote. If validation fails,
 no URL is returned, or payee/amount differs, do not construct, repair, shorten,
 replace or forward a link from another source. Report the problem instead.
 Never generate a `upi://` link or collect a payment yourself.
+
+If the receipt says `payment.simulated: true`, show its exact returned
+`payment.label` (**“Test payment, no money moved”**) prominently before any
+link, and say this is a test order/payment. Do not use the real-payment copy
+below, claim money was charged or received, or imply a mock checkout is a real
+UPI transfer. A simulated paid status means only that the test order entered
+the queue; no money moved.
 
 Use this wording, replacing placeholders only from the returned receipt:
 
