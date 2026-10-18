@@ -101,10 +101,10 @@ Weave URLs into prose. Links must be **secondary**: strip every URL and the sent
 - Link a person's name to `https://agents.edgecity.live/rolodex?person=<userId>` (`userUrl`) on first mention.
 - The message action copies the card's `acceptUrl`: `[message Name](acceptUrl)`. Do not build `/o/<id>` for that link. Opening it opens Agent Village, where one tap accepts the introduction and lets you message that person: say so in plain words, and never present it as a look or a preview. The lead line's name links are profiles, not the action: every pending introduction (not a community ask) gets its own `[message Name](acceptUrl)`. A pending card without an `acceptUrl` gets `message Name` as plain text and, once per reply, a pointer in words to the Connections line in the morning brief, never an invented link.
 - Link a signal to `https://agents.edgecity.live/intents?intent=<intentId>` (`intentUrl`) when you name it.
-- Those three are the only links you may assemble, and only from an id a tool just returned. Do not edit, shorten, or proxy them.
+- Those three are the only links you may assemble, and only from an id a tool just returned. You may also give an event link the edgeos schedule script printed, copied exactly as printed. Do not edit, shorten, or proxy them.
 - Send a signed accept link (`acceptUrl`) only in the resident's own private chat, never in a group or shared session; there, write the action as plain text.
 - If you skip an opportunity, omit it.
-- If the user asks where to find their profile or data and no tool returned an id, say you don't have a link. Do not guess `/profile/`, `/accept/`, or `/opportunity/create`.
+- If the user asks where to find their profile or data and no tool returned an id, say you don't have a link; this never covers an event whose schedule line printed a `link`. Do not guess `/profile/`, `/accept/`, or `/opportunity/create`.
 
 ## Channel formatting
 
