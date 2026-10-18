@@ -24,21 +24,21 @@ Two more bundles are **opt-in and Hermes-only**, and are not part of the set abo
 (recipient search and gratitude, with exact-preview manual approval; its
 install also carries the owner's Rolodex meeting mark/undo and Skylight status
 read used by `rolodex` and `skylight`), `dizko` (public discovery through a
-reviewed MCP proxy), and `fourkicks` (live café menu/schedule and exact-preview,
+reviewed MCP proxy), and `forkicks` (live café menu/schedule and exact-preview,
 manually approved orders with returned UPI links or card at pickup). UPI receipts
-name SWISSDESI (Four Kicks' UPI), the exact amount and order note, and say the café
+name SWISSDESI (For Kicks' UPI), the exact amount and order note, and say the café
 will check payment at pickup. Orders queue immediately; queued never means paid.
 The overlay's `install/install_miniapps.ts` stages these source directories
 from the control plane's validated installed projection; its reviewed bundle
-must include `fourkicks` version `1.0.0`, skill `["fourkicks"]`, and exactly
-`fourkicks.menu`, `fourkicks.schedule`, `fourkicks.order.prepare`,
-`fourkicks.order.confirm`, `fourkicks.order.status`, `fourkicks.order.cancel`
+must include `forkicks` version `1.0.0`, skill `["forkicks"]`, and exactly
+`forkicks.menu`, `forkicks.schedule`, `forkicks.order.prepare`,
+`forkicks.order.confirm`, `forkicks.order.status`, `forkicks.order.cancel`
 in that order. This skills repository does not contain the overlay installer.
 `gold-stars`
 is also a baseline skill the installer ships to every box, inert until the app is
 installed; the helper never removes a skill the installer ships. Removing an app
 revokes its permission and removes only a skill file the installer does not ship
-(`dizko` and `fourkicks`). Copying a skill alone grants no API access.
+(`dizko` and `forkicks`). Copying a skill alone grants no API access.
 See [the builder starter and review contract](../mini-apps/README.md).
 
 The skills cross-reference each other. `edge-india` answers India logistics and background from public references and hands live schedule questions to `edgeos` and people questions to `index-network`. `edge-esmeralda` supplies the popup id that `edgeos` recipes need. `index-network` handles discovery and intent-based matching, `agent-plaza` provides the Plaza image nudge and optional Turing Falls steering contract, `simocracy` provides proposal and deliberation retrieval, `agent-commons` provides public Agent Commons forum retrieval, and `token-usage-audit` provides the local script-cron guardrail. Install all eight together.
