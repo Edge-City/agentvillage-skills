@@ -199,9 +199,11 @@ ALL_HEADINGS = {
     "here to", "working on", "wants to meet", "can offer", "curious about", "preferences", "outside work", "personal",
 }
 REMOVED_HEADING = "removed by you"
-#: One item line, as the app writes it (`context-tags.ts` LINE).
+#: One item line, as the app writes it (`context-tags.ts` LINE). P-5 (grammar e3): a section may follow
+#: the marker (`, public`, `, village` or `, private`); it is read past, so words and marker stay as in e2.
 ITEM_LINE = re.compile(
-    r"^- (.+?)(?:\s+\((setup|telegram|you|guess|chat)(?:,\s*intros chat\s+([0-9a-f]{12})|,\s*(guess))?\))?$", re.I
+    r"^- (.+?)(?:\s+\((setup|telegram|you|guess|chat)(?:,\s*intros chat\s+([0-9a-f]{12})|,\s*(guess))?(?:,\s*(public|village|private))?\))?$",
+    re.I,
 )
 
 #: Sessions whose user turns are the resident's own words (as recall reads them).

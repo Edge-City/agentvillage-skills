@@ -80,8 +80,13 @@ export interface ContextTags {
 /**
  * One item line: `- text (marker)`, `- text (telegram, intros chat <12 hex>)`, `- text (chat, guess)`
  * (a chat item the person did not say outright: read as a guess), or `- text` (read as telegram).
+ * P-5 (the app's grammar e3, agentvillage-app#441 render.ts LINE; the control plane prints it while its
+ * CONTEXT_SECTIONS is on, cp#306): a section may follow the marker, `, public`, `, village` or
+ * `, private` ("- A seed library (guess, private)"); it is read past, so the words, the marker and a
+ * guess are what they are without it. The section note the app prints after the header is not an
+ * item line (it stands before any heading) and is skipped.
  */
-const LINE = /^- (.+?)(?:\s+\((setup|telegram|you|guess|chat)(?:,\s*intros chat\s+([0-9a-f]{12})|,\s*(guess))?\))?$/i;
+const LINE = /^- (.+?)(?:\s+\((setup|telegram|you|guess|chat)(?:,\s*intros chat\s+([0-9a-f]{12})|,\s*(guess))?(?:,\s*(public|village|private))?\))?$/i;
 
 /** The interest groups the morning brief takes when av-profile.json states no interests, in this order. */
 export const INTEREST_GROUPS: readonly ContextGroup[] = ["here", "curious", "work", "meet"];
