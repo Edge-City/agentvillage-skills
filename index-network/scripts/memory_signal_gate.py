@@ -199,10 +199,29 @@ ALL_HEADINGS = {
     "here to", "working on", "wants to meet", "can offer", "curious about", "preferences", "outside work", "personal",
 }
 REMOVED_HEADING = "removed by you"
-#: One item line, as the app writes it (`context-tags.ts` LINE). P-5 (grammar e3): a section may follow
-#: the marker (`, public`, `, village` or `, private`); it is read past, so words and marker stay as in e2.
+#: The visibility vocabulary agentvillage.visibility/1 (`context-tags.ts` VISIBILITY_*; the app's
+#: src/lib/visibility/visibility-vocab.v1.json, byte-identical in the control plane; context-marks.test.ts
+#: pins its sha256).
+VISIBILITY_VOCAB = "agentvillage.visibility/1"
+VISIBILITY_PRIVATE = "agentvillage/private"
+VISIBILITY_EDGE_CITY_INDIA_2026 = "agentvillage/edgecityindia2026"
+VISIBILITY_IDS = (VISIBILITY_PRIVATE, VISIBILITY_EDGE_CITY_INDIA_2026)
+#: VISIBILITY MARKS (`context-tags.ts` MARK_VISIBILITY): every mark a card line may carry, old (the e3
+#: wire today, mapped as the vocab's `mapping.mark`) and new (the vocab's ids, each naming itself).
+#: Nothing else is a mark. Writers still write only the old marks; readers take both.
+MARK_VISIBILITY = {
+    "public": VISIBILITY_EDGE_CITY_INDIA_2026,
+    "village": VISIBILITY_EDGE_CITY_INDIA_2026,
+    "private": VISIBILITY_PRIVATE,
+    VISIBILITY_EDGE_CITY_INDIA_2026: VISIBILITY_EDGE_CITY_INDIA_2026,
+    VISIBILITY_PRIVATE: VISIBILITY_PRIVATE,
+}
+#: One item line, as the app writes it (`context-tags.ts` LINE, the same pattern). P-5 (grammar e3): a
+#: mark may follow the marker (a MARK_VISIBILITY key: `, public`, `, village`, `, private`,
+#: `, agentvillage/edgecityindia2026` or `, agentvillage/private`); it is read past, so words and marker
+#: stay as in e2. Any other token leaves the parenthesis part of the words.
 ITEM_LINE = re.compile(
-    r"^- (.+?)(?:\s+\((setup|telegram|you|guess|chat)(?:,\s*intros chat\s+([0-9a-f]{12})|,\s*(guess))?(?:,\s*(public|village|private))?\))?$",
+    r"^- (.+?)(?:\s+\((setup|telegram|you|guess|chat)(?:,\s*intros chat\s+([0-9a-f]{12})|,\s*(guess))?(?:,\s*(public|village|private|agentvillage\/edgecityindia2026|agentvillage\/private))?\))?$",
     re.I,
 )
 
@@ -536,6 +555,49 @@ def item_key(text: str) -> str:
     return re.sub(r"[\s.!…]+$", "", re.sub(r"\s+", " ", text).strip().lower())
 
 
+def mark_visibility(mark: Optional[str], guess: bool) -> str:
+    """The visibility a card line's mark names (`context-tags.ts` markVisibility, the vocab's
+    visibilityOfMark): a guess, or a line not known to be no guess (`guess` anything but False), is
+    Private whatever its mark; no mark and anything that is not a mark are Private."""
+    if guess is not False:
+        return VISIBILITY_PRIVATE
+    key = _ascii_lower(mark) if isinstance(mark, str) else ""
+    return MARK_VISIBILITY.get(key, VISIBILITY_PRIVATE)
+
+
+def _ascii_lower(text: str) -> str:
+    """`text` with A-Z lowered and nothing else touched (JavaScript's toLowerCase on the ASCII marks;
+    a non-ASCII character stays, so it never folds into a mark)."""
+    return text.translate(_ASCII_LOWER)
+
+
+_ASCII_LOWER = {c: c + 32 for c in range(ord("A"), ord("Z") + 1)}
+#: The five markers (`context-tags.ts` ITEM_MARKERS).
+_ITEM_MARKERS = frozenset({"setup", "telegram", "you", "guess", "chat"})
+
+
+def parse_item_line(line: str) -> Optional[tuple[str, str, Optional[str], str]]:
+    """(words, marker, mark or None, visibility) of one item line (`context-tags.ts` parseContextLine),
+    or None for a line with no words. A `(chat, guess)` is `guess`; no marker is `telegram`; a guess, a
+    plain `(chat)` line and a guess suffix on another marker (`(you, guess, public)`) are Private
+    whatever their mark; so is a line whose parenthesis holds anything but printable ASCII, or whose
+    marker is not one of the five after ASCII lowering (`re.I` folds `ſ`/`ı`/`İ`, and the whitespace
+    class differs from JavaScript's: OV-415 refute N1)."""
+    match = ITEM_LINE.match(line)
+    text = match.group(1).strip() if match else ""
+    if not text:
+        return None
+    marker = (match.group(2) or "telegram").lower()
+    if marker == "chat" and match.group(4):
+        marker = "guess"
+    mark = _ascii_lower(match.group(5)) if match.group(5) else None
+    plain = all(" " <= c <= "~" for c in line[match.end(1):]) and (
+        match.group(2) is None or _ascii_lower(match.group(2)) in _ITEM_MARKERS
+    )
+    guess = not plain or marker in ("guess", "chat") or match.group(4) is not None
+    return text, marker, mark, mark_visibility(mark, guess)
+
+
 def context_tags(user_text: Optional[str]) -> tuple[dict[str, list[tuple[str, str]]], list[str]]:
     """(group -> [(text, marker)], removed texts) of the last Context tags entry; empty without one."""
     groups: dict[str, list[tuple[str, str]]] = {}
@@ -554,13 +616,10 @@ def context_tags(user_text: Optional[str]) -> tuple[dict[str, list[tuple[str, st
             continue
         if group is None or not line.startswith("- "):
             continue
-        match = ITEM_LINE.match(line)
-        text = match.group(1).strip() if match else ""
-        if not text:
+        read = parse_item_line(line)
+        if read is None:
             continue
-        marker = (match.group(2) or "telegram").lower()
-        if marker == "chat" and match.group(4):
-            marker = "guess"
+        text, marker = read[0], read[1]
         if group == REMOVED_HEADING:
             removed.append(text)
         else:
