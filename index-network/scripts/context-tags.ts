@@ -29,7 +29,10 @@
  * read leaves out too, and an app build before agentvillage-app#117 wrote a
  * chat guess as plain `(chat)` (OV-278 S1, S2). Never the `Summary:` line
  * (the app's reading), and never anything under `Removed by you:`, nor a
- * group item that matches one.
+ * group item that matches one. VISIBILITY B3 (CLAIMS L14097): in an entry
+ * that carries marks, never a line whose mark reads Private (`private` or
+ * `agentvillage/private`), nor an unmarked line (the note's rule: no mark is
+ * private); an entry with no marks at all reads exactly as before.
  *
  * The read is defensive and quiet: a missing, unreadable or oversized file,
  * or a file without the entry, is "no tags" (null), and the jobs then behave
@@ -71,6 +74,12 @@ export type ContextMarker = "setup" | "you" | "telegram" | "chat" | "guess";
 export interface ContextItem {
   text: string;
   marker: ContextMarker;
+  /**
+   * VISIBILITY B3: only in an entry that carries marks (any item line with a mark, old or new), every
+   * item's visibility (parseContextLine's: an unmarked line, a guess or a chat line is Private). Absent
+   * in an entry with no marks at all, so that entry reads exactly as before.
+   */
+  visibility?: Visibility;
 }
 export interface ContextTags {
   groups: Record<ContextGroup, ContextItem[]>;
@@ -180,10 +189,15 @@ function emptyGroups(): Record<ContextGroup, ContextItem[]> {
   return { here: [], work: [], meet: [], offer: [], curious: [], prefs: [], fun: [], about: [] };
 }
 
-/** The entry's groups and removals. Lines it does not know (the header, `Summary:`, notes) are skipped. Pure. */
+/**
+ * The entry's groups and removals. Lines it does not know (the header, `Summary:`, notes) are skipped.
+ * VISIBILITY B3: when any item line carries a mark, every item carries its visibility. Pure.
+ */
 export function parseContextTags(entry: string): ContextTags {
   const groups = emptyGroups();
   const removed: ContextItem[] = [];
+  const seen: [ContextItem, Visibility][] = [];
+  let marked = false;
   let group: ContextGroup | "removed" | null = null;
   for (const raw of entry.split("\n")) {
     const line = raw.trim();
@@ -197,9 +211,12 @@ export function parseContextTags(entry: string): ContextTags {
     const read = parseContextLine(line);
     if (!read) continue;
     const item: ContextItem = { text: read.text, marker: read.marker };
+    if (read.mark !== null) marked = true;
+    seen.push([item, read.visibility]);
     if (group === "removed") removed.push(item);
     else groups[group].push(item);
   }
+  if (marked) for (const [item, visibility] of seen) item.visibility = visibility;
   return { groups, removed };
 }
 
@@ -246,15 +263,18 @@ function itemKey(text: string): string {
 
 /**
  * A group's items the resident stated, in the entry's order: no `(guess)`, no
- * `(chat)` (the agent's reading, never the resident's words), and none the
- * resident removed. The app keeps a removal cut to 80 characters with
- * an ellipsis, so an item that starts with a cut removal counts as removed too.
- * Pure.
+ * `(chat)` (the agent's reading, never the resident's words), none the
+ * resident removed, and (VISIBILITY B3) in an entry with marks only those whose
+ * visibility is Edge City India 2026 (an allowlist: a `private` /
+ * `agentvillage/private` line, an unmarked one and anything else are skipped). The app keeps a removal cut to 80 characters with an ellipsis, so an
+ * item that starts with a cut removal counts as removed too. Pure.
  */
 export function statedItems(tags: ContextTags, group: ContextGroup): string[] {
   const removed = removedBy(tags);
   return tags.groups[group]
     .filter((item) => item.marker !== "guess" && item.marker !== "chat")
+    // An allowlist, failing closed: no visibility (an entry with no marks: as on main) or Edge City India 2026 only.
+    .filter((item) => item.visibility === undefined || item.visibility === VISIBILITY_EDGE_CITY_INDIA_2026)
     .map((item) => item.text)
     .filter((text) => !removed(itemKey(text)));
 }

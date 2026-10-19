@@ -111,10 +111,11 @@ describe("parseContextTags mirrors the app's parser", () => {
 /**
  * P-5 (the app's grammar e3, agentvillage-app#441; the control plane prints it while its CONTEXT_SECTIONS
  * is on, cp#306): a card line may carry its section after the marker, and a note follows the header.
- * The same entry marked reads exactly as the unmarked one: the same items, markers, statedItems,
- * contextInterests and contextPreferences (a guess or a chat line never reads as stated).
+ * The same entry marked holds the same items and markers; VISIBILITY B3 (CLAIMS L14097): its stated
+ * items are those whose mark is public or village, never a `private` one and never an unmarked one
+ * (the note's rule), and a guess or a chat line never reads as stated.
  */
-describe("grammar e3: a marked entry reads as the e2 entry", () => {
+describe("grammar e3: a marked entry reads as the e2 entry, less its Private lines (B3)", () => {
   const NOTE = "Card items marked public may be shown to people; marked village may reach other residents' agents; marked private are for you alone. An item with no mark: treat it as private. Gift lines are offers the person chose to share.";
   const SECTIONS = ["public", "village", "private"];
   let n = 0;
@@ -137,13 +138,26 @@ describe("grammar e3: a marked entry reads as the e2 entry", () => {
     expect(E3).toMatch(/- Housing policy for co-ops \(setup\)$/m);
   });
 
-  test("the same groups, markers and removals; the same stated items, interests and preferences", () => {
+  test("the same groups, markers and removals; the stated items less the private and unmarked lines", () => {
     const e2 = parseContextTags(ENTRY);
     const e3 = parseContextTags(E3);
-    expect(e3).toEqual(e2);
-    for (const g of ["here", "work", "meet", "offer", "curious", "prefs", "fun", "about"] as const) expect(statedItems(e3, g)).toEqual(statedItems(e2, g));
-    expect(contextInterests(e3)).toEqual(contextInterests(e2));
-    expect(contextPreferences(e3)).toEqual(contextPreferences(e2));
+    const words = (t: typeof e2) => JSON.stringify({ groups: Object.fromEntries(Object.entries(t.groups).map(([g, items]) => [g, items.map(({ text, marker }) => ({ text, marker }))])), removed: t.removed.map(({ text, marker }) => ({ text, marker })) });
+    expect(words(e3)).toBe(words(e2));
+    expect(JSON.stringify(e2)).not.toContain("visibility"); // the unmarked entry is as it was
+    // The sections go public, village, private in turn down the card lines; "- Mycology" has none.
+    const stated = Object.fromEntries((["here", "work", "meet", "offer", "curious", "prefs", "fun", "about"] as const).map((g) => [g, statedItems(e3, g)]));
+    expect(stated).toEqual({
+      here: ["Find a pilot partner for the soil kit"], // public
+      work: [], // "A field kit…" is private ("Housing policy…" is removed)
+      meet: ["People who run seed libraries"], // village
+      offer: [], // private
+      curious: [], // "Mycology" is unmarked in a marked entry: Private
+      prefs: ["Short messages, please", "No intros on weekends"], // village, public
+      fun: [], // private
+      about: ["INFJ, speaks Tamil and English"], // public
+    });
+    expect(contextInterests(e3)).toEqual(["Find a pilot partner for the soil kit", "People who run seed libraries"]);
+    expect(contextPreferences(e3)).toEqual(["Short messages, please", "No intros on weekends"]);
   });
 
   test("the approval refute's lines: guesses and chat lines with their sections are not stated, nor do the marker words leak", () => {
@@ -151,8 +165,8 @@ describe("grammar e3: a marked entry reads as the e2 entry", () => {
       `${CONTEXT_TAGS_MARK}\nKept by the Agent Village app.\n${NOTE}\nWorking on:\n- Tool library (you, public)\n- A seed library (guess, private)\n- Co-op finance (chat, guess, village)\n- Night walks (chat, village)\nPreferences:\n- Short replies (you, private)`,
     );
     expect(statedItems(tags, "work")).toEqual(["Tool library"]);
-    expect(contextPreferences(tags)).toEqual(["Short replies"]);
-    expect(JSON.stringify(tags)).not.toMatch(/public|village|private/);
+    expect(contextPreferences(tags)).toEqual([]); // B3: "Short replies" is marked private
+    expect(JSON.stringify([...Object.values(tags.groups).flat(), ...tags.removed].map((i) => [i.text, i.marker]))).not.toMatch(/public|village|private/);
   });
 
   test("anything but the three sections stays part of the words, as an unknown marker does", () => {

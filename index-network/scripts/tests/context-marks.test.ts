@@ -161,17 +161,20 @@ describe("the table: every old mark and every new id, TypeScript and Python alik
     }
   });
 
-  test("a whole entry with the new ids reads as the same entry with the old marks (and as the unmarked one)", () => {
+  test("a whole entry with the new ids reads as the same entry with the old marks (and holds the unmarked one's words)", () => {
     const oldEntry = entryFor("village", "Same");
     const newEntry = entryFor(VISIBILITY_EDGE_CITY_INDIA_2026, "Same");
     const privOld = entryFor("private", "Same");
     const privNew = entryFor(VISIBILITY_PRIVATE, "Same");
     const plain = entryFor(null, "Same");
-    const base = parseContextTags(plain);
-    for (const e of [oldEntry, newEntry, privOld, privNew]) expect(parseContextTags(e)).toEqual(base);
-    for (const g of ["here", "work", "meet", "offer", "curious", "prefs", "fun", "about"] as const) expect(statedItems(parseContextTags(newEntry), g)).toEqual(statedItems(base, g));
-    const [pPlain, pOld, pNew, pPrivOld, pPrivNew] = pyOutputs([plain, oldEntry, newEntry, privOld, privNew]);
-    for (const p of [pOld, pNew, pPrivOld, pPrivNew]) expect(p).toBe(pPlain!);
+    const words = (e: string) => JSON.stringify(Object.values(parseContextTags(e).groups).map((items) => items.map((i) => [i.text, i.marker])));
+    for (const e of [oldEntry, newEntry, privOld, privNew]) expect(words(e)).toBe(words(plain));
+    expect(parseContextTags(newEntry)).toEqual(parseContextTags(oldEntry));
+    expect(parseContextTags(privNew)).toEqual(parseContextTags(privOld));
+    for (const g of ["here", "work", "meet", "offer", "curious", "prefs", "fun", "about"] as const) expect(statedItems(parseContextTags(newEntry), g)).toEqual(statedItems(parseContextTags(oldEntry), g));
+    const [, pOld, pNew, pPrivOld, pPrivNew] = pyOutputs([plain, oldEntry, newEntry, privOld, privNew]);
+    expect(pNew).toBe(pOld!);
+    expect(pPrivNew).toBe(pPrivOld!);
   });
 
   test("the hazard this closes: today's reader took a new id as words, so a guess read as stated", () => {
@@ -179,9 +182,9 @@ describe("the table: every old mark and every new id, TypeScript and Python alik
     const before = LINE_FE243B06.exec(line)!;
     expect([before[1], before[2]]).toEqual([`A seed library (guess, ${VISIBILITY_PRIVATE})`, undefined]); // read as an unmarked (telegram) item
     const tags = parseContextTags(`${CONTEXT_TAGS_MARK}\nWorking on:\n${line}\n- Tool library (you, ${VISIBILITY_EDGE_CITY_INDIA_2026})`);
-    expect(tags.groups.work).toEqual([{ text: "A seed library", marker: "guess" }, { text: "Tool library", marker: "you" }]);
+    expect(tags.groups.work.map(({ text, marker }) => ({ text, marker }))).toEqual([{ text: "A seed library", marker: "guess" }, { text: "Tool library", marker: "you" }]);
     expect(statedItems(tags, "work")).toEqual(["Tool library"]);
-    expect(JSON.stringify(tags)).not.toMatch(/agentvillage/);
+    expect(tags.groups.work.map((i) => i.text).join(" ")).not.toMatch(/agentvillage/);
   });
 });
 
@@ -339,12 +342,26 @@ describe("the golden: today's inputs give byte-identical outputs", () => {
     expect(now.entries.length).toBeGreaterThanOrEqual(30);
   });
 
-  test("TypeScript: every entry's outputs are byte-identical", () => {
-    for (let i = 0; i < now.entries.length; i++) expect([now.entries[i]!.name, now.entries[i]!.ts_sha256]).toEqual([golden.entries[i].name, golden.entries[i].ts_sha256]);
+  /**
+   * VISIBILITY B3 (stacked on #415): an entry with no marks at all (no mark, and every token that is no
+   * mark) is byte-identical to main; an entry WITH marks now drops its Private and unmarked lines from
+   * the stated items (context-private-skip.test.ts holds what it reads instead), so its outputs differ.
+   */
+  const unmarked = (name: string) => !name.startsWith("old mark") && name !== "mixed old marks";
+
+  test("TypeScript: every unmarked entry's outputs are byte-identical; every marked one's differ (B3)", () => {
+    expect(now.entries.filter((e) => unmarked(e.name)).length).toBe(24);
+    for (let i = 0; i < now.entries.length; i++) {
+      const same = now.entries[i]!.ts_sha256 === golden.entries[i].ts_sha256;
+      expect([now.entries[i]!.name, same]).toEqual([golden.entries[i].name, unmarked(golden.entries[i].name)]);
+    }
   });
 
-  test("Python: every entry's outputs are byte-identical", () => {
-    for (let i = 0; i < now.entries.length; i++) expect([now.entries[i]!.name, now.entries[i]!.py_sha256]).toEqual([golden.entries[i].name, golden.entries[i].py_sha256]);
+  test("Python: every unmarked entry's outputs are byte-identical; every marked one's differ (B3)", () => {
+    for (let i = 0; i < now.entries.length; i++) {
+      const same = now.entries[i]!.py_sha256 === golden.entries[i].py_sha256;
+      expect([now.entries[i]!.name, same]).toEqual([golden.entries[i].name, unmarked(golden.entries[i].name)]);
+    }
   });
 
   test("the corpus is not vacuous: it holds stated items, guesses, removals and words that kept a parenthesis", () => {
@@ -375,10 +392,12 @@ describe("writers are unchanged: nothing in the overlay writes a new id", () => 
       if (text.includes("agentvillage/private") || text.includes("agentvillage/edgecityindia2026")) hits.push(rel);
     }
     expect(hits.sort()).toEqual([
+      "scripts/tests/memory-signal-gate.test.ts",
       "skills/index-network/scripts/context-tags.ts",
       "skills/index-network/scripts/memory_signal_gate.py",
       "skills/index-network/scripts/tests/context-marks-corpus.ts",
       "skills/index-network/scripts/tests/context-marks.test.ts",
+      "skills/index-network/scripts/tests/context-private-skip.test.ts",
       "skills/index-network/scripts/tests/fixtures/context-marks-golden.json",
     ]);
   });

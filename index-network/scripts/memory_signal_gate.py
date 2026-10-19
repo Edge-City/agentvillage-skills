@@ -598,9 +598,14 @@ def parse_item_line(line: str) -> Optional[tuple[str, str, Optional[str], str]]:
     return text, marker, mark, mark_visibility(mark, guess)
 
 
-def context_tags(user_text: Optional[str]) -> tuple[dict[str, list[tuple[str, str]]], list[str]]:
-    """(group -> [(text, marker)], removed texts) of the last Context tags entry; empty without one."""
-    groups: dict[str, list[tuple[str, str]]] = {}
+def context_tags(user_text: Optional[str]) -> tuple[dict[str, list[tuple[str, ...]]], list[str]]:
+    """(group -> [(text, marker)], removed texts) of the last Context tags entry; empty without one.
+    VISIBILITY B3 (`context-tags.ts` parseContextTags): when any item line carries a mark, every item is
+    (text, marker, visibility), an unmarked line, a guess or a chat line being Private; an entry with no
+    marks at all keeps (text, marker), exactly as before."""
+    groups: dict[str, list[tuple[str, ...]]] = {}
+    visibilities: list[tuple[str, int, str]] = []
+    marked = False
     removed: list[str] = []
     if not user_text:
         return groups, removed
@@ -620,10 +625,15 @@ def context_tags(user_text: Optional[str]) -> tuple[dict[str, list[tuple[str, st
         if read is None:
             continue
         text, marker = read[0], read[1]
+        marked = marked or read[2] is not None
         if group == REMOVED_HEADING:
             removed.append(text)
         else:
             groups.setdefault(group, []).append((text, marker))
+            visibilities.append((group, len(groups[group]) - 1, read[3]))
+    if marked:
+        for name, index, visibility in visibilities:
+            groups[name][index] = groups[name][index] + (visibility,)
     return groups, removed
 
 
@@ -637,13 +647,19 @@ def is_removed(text: str, removed: list[str]) -> bool:
     return False
 
 
-def stated_goals(groups: dict[str, list[tuple[str, str]]], removed: list[str]) -> list[str]:
-    """The items the resident stated under the goal headings, in heading order, none removed, no repeats."""
+def stated_goals(groups: dict[str, list[tuple[str, ...]]], removed: list[str]) -> list[str]:
+    """The items the resident stated under the goal headings, in heading order, none removed, no repeats;
+    VISIBILITY B3: in an entry with marks, only those whose visibility is Edge City India 2026 (an
+    allowlist: a `private` or `agentvillage/private` line, an unmarked one and anything else are skipped)."""
     out: list[str] = []
     seen: set[str] = set()
     for heading in GOAL_HEADINGS:
-        for text, marker in groups.get(heading, []):
+        for item in groups.get(heading, []):
+            text, marker = item[0], item[1]
             if marker in ("guess", "chat") or is_removed(text, removed):
+                continue
+            # An allowlist, failing closed: a marked entry's item is a goal only when Edge City India 2026.
+            if len(item) > 2 and item[2] != VISIBILITY_EDGE_CITY_INDIA_2026:
                 continue
             key = item_key(text)
             if key and key not in seen:

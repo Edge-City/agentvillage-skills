@@ -176,6 +176,8 @@ for entry in req.get("entries", []):
 parse = getattr(gate, "parse_item_line", None)
 for line in req.get("lines", []):
     out["lines"].append(None if parse is None else parse(line))
+for groups, removed in req.get("goals_of", []):
+    out.setdefault("goals_of", []).append(gate.stated_goals({k: [tuple(i) for i in v] for k, v in groups.items()}, removed))
 vis = getattr(gate, "mark_visibility", None)
 for mark, guess in req.get("marks", []):
     out["marks"].append(None if vis is None else vis(mark, guess))
@@ -194,10 +196,11 @@ export interface PyAnswer {
   lines: (null | [string, string, string | null, string])[];
   marks: (string | null)[];
   constants?: { vocab: string | null; ids: string[]; marks: Record<string, string>; pattern: string };
+  goals_of?: string[][];
 }
 
 /** Run the Python harness once over every request (one python3 process). */
-export function pyRun(req: { entries?: string[]; lines?: string[]; marks?: [string | null, boolean][]; constants?: boolean }): PyAnswer {
+export function pyRun(req: { entries?: string[]; lines?: string[]; marks?: [string | null, boolean][]; constants?: boolean; goals_of?: [Record<string, string[][]>, string[]][] }): PyAnswer {
   const proc = Bun.spawnSync(["python3", "-I", "-B", "-c", PY_HARNESS, GATE], { stdin: Buffer.from(JSON.stringify(req)), stdout: "pipe", stderr: "pipe" });
   if (proc.exitCode !== 0) throw new Error(`python3 harness exited ${proc.exitCode}: ${proc.stderr.toString().slice(0, 2000)}`);
   return JSON.parse(proc.stdout.toString()) as PyAnswer;
