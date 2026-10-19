@@ -1,7 +1,7 @@
 ---
 name: forkicks
 description: Show For Kicks' live café menu as images by default, read its schedule, preview an order with its exact total and shared display name, and place it only after the resident approves. Optional first-party mini-app; UPI and card orders use pay-at-pickup honor rules.
-version: 1.0.3
+version: 1.0.4
 author: Edge City
 ---
 
@@ -76,6 +76,15 @@ an item, change fulfilment or add drinks to evade this restriction.
    Ask whether the owner wants UPI with a returned payment link (`upi`) or card
    at pickup (`card_on_pickup`). They'll check UPI payment at pickup; it does not
    hold the order out of the queue. Delivery needs the intended address and minimum drinks.
+   Use only exact options in the returned `optionGroups` as `optionIds`; never
+   invent decaf, iced or other options, or claim an absent option is a default.
+   Anything the resident wants that is not an exact menu option belongs in the
+   optional `note`, using their short, verbatim words (for example, “less ice”
+   or “decaf if possible”). Notes are limited to 140 characters by the current
+   API. Never silently truncate a note; if it is too long, ask the resident for
+   shorter wording. A note is a request the café may not honour, not a guaranteed
+   option, price or allergen accommodation. Never tell the resident to ask at
+   pickup when the note can carry the request.
 2. Call `forkicks.order.prepare` with `items` (each `{itemId,qty,optionIds}`),
    `fulfilment` (`{type:"pickup"|"delivery",locationId,date?,deliveryAddress?}`),
    `paymentMethod` and optional `note`. It returns an immutable `draftId`,
