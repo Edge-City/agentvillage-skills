@@ -375,7 +375,7 @@ describe("the golden: today's inputs give byte-identical outputs", () => {
 });
 
 describe("writers are unchanged: nothing in the overlay writes a new id", () => {
-  test("only the two readers (and these tests) name an id, anywhere in the repo", () => {
+  test("only the two readers, the Private items rule in tools.md (and these tests) name an id, anywhere in the repo", () => {
     const REPO = join(import.meta.dir, "..", "..", "..", "..");
     const hits: string[] = [];
     // Every file git tracks or would add (OV-415 refute N6): the whole checkout, less what .gitignore drops.
@@ -399,6 +399,8 @@ describe("writers are unchanged: nothing in the overlay writes a new id", () => 
       "skills/index-network/scripts/tests/context-marks.test.ts",
       "skills/index-network/scripts/tests/context-private-skip.test.ts",
       "skills/index-network/scripts/tests/fixtures/context-marks-golden.json",
+      // VISIBILITY B3 prompt half: the agent's reader-side rule ("Private items"), which writes nothing.
+      "skills/index-network/tools.md",
     ]);
   });
 });
