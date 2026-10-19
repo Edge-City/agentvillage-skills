@@ -28,9 +28,9 @@ If unavailable, say ordering is unavailable; do not pretend an order was placed.
 For example: `{"operation":"forkicks.menu"}`. These reads need no approval.
 
 For an explicit “show/send me the menu as an image/board” request, use
-`{"operation":"forkicks.menu","format":"image"}`. Optional `theme` is
-`"chalk"` (default) or `"paper"` (provisional concept); a theme is valid only
-with image format. The optional date/location filters still apply. Descriptions
+`{"operation":"forkicks.menu","format":"image"}`. That sends the café's own
+menu design. Optional `theme` is `"forkicks"` (default), `"chalk"` or `"paper"`
+(earlier concepts; paper is provisional); a theme is valid only with image format. The optional date/location filters still apply. Descriptions
 are merchant-authored plain text; absent descriptions mean unknown, not an
 invitation to invent ingredients or allergens.
 
