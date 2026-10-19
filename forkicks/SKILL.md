@@ -1,7 +1,7 @@
 ---
 name: forkicks
 description: Show For Kicks' live café menu as images by default, read its schedule, preview an order with its exact total and shared display name, and place it only after the resident approves. Optional first-party mini-app; UPI and card orders use pay-at-pickup honor rules.
-version: 1.0.4
+version: 1.0.5
 author: Edge City
 ---
 
@@ -91,6 +91,15 @@ an item, change fulfilment or add drinks to evade this restriction.
    `quote`, `displayName` and `payloadHash`; preparing is not placing an order.
    If `quote.canOrder` is false, explain its refusal and warnings. No draft is
    created for a refused quote; do not request approval or attempt confirmation.
+   For prepare, `date` is nested inside `fulfilment`; a top-level `date` is
+   accepted only by the menu operation. A complete shape example follows
+   (illustrative IDs/date only: replace them with current menu/schedule values):
+   `{"operation":"forkicks.order.prepare","items":[{"itemId":"returned-item-id","qty":1,"optionIds":["returned-option-id"]}],"fulfilment":{"type":"pickup","locationId":"returned-location-id","date":"2026-10-20"},"paymentMethod":"card_on_pickup","note":"less ice"}`.
+   Include every required option from that item's returned `optionGroups`, or
+   use `optionIds:[]` when there are no selected options. Never copy illustrative
+   IDs into a real request. If the tool returns `invalid_arguments`, correct the
+   named fields (especially nesting `date` under `fulfilment`) before retrying;
+   this local validation failure does not mean the café or service is down.
 3. Show the exact returned preview: every item and quantity, every selected
    option including defaults, line prices, any discount, **total in ₹**, pickup
    place and date/time (or returned window; say if no exact time is supplied),
