@@ -1,7 +1,7 @@
 ---
 name: forkicks
 description: Show For Kicks' live café menu as images by default, read its schedule, preview an order with its exact total and shared display name, and place it only after the resident approves. Optional first-party mini-app; UPI and card orders use pay-at-pickup honor rules.
-version: 1.0.6
+version: 1.0.7
 author: Edge City
 ---
 
@@ -111,7 +111,9 @@ an item, change fulfilment or add drinks to evade this restriction.
    the approval card for this exact order was sent to the resident's approvals
    bot, so say: “I've sent your approval card to your approvals bot; tap Approve
    there and I'll place it. If no card arrives within a minute, tell me and I'll
-   check.” Mention once per order:
+   check.” Append a separate line after that exact message:
+   `Open approvals chat: https://t.me/AgentVillageApprovalsBot`
+   Mention once per order:
 
    > Agent ordering is a new experiment this week, so tell me if anything looks off.
 
@@ -126,6 +128,8 @@ an item, change fulfilment or add drinks to evade this restriction.
    boolean or chat reply alone is not purchase authority. Never fabricate
    `approval`, `taskId`, hashes or an execution record. A changed item, option,
    fulfilment, name, note or payment method needs a new exact preview and approval, not a patched draft.
+   If the same draft is still waiting for the resident's approval, include:
+   `Open approvals chat: https://t.me/AgentVillageApprovalsBot`
    The native approval card is derived from the saved canonical payload, not
    agent-written preview text: quantity, items/options, unit/line prices, ₹ total,
    fulfilment, café name/id/address, IST date, delivery destination, payment,

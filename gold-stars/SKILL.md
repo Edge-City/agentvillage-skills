@@ -1,7 +1,7 @@
 ---
 name: gold-stars
 description: Help the owner reflect on meaningful interactions, read their allowance, and send gratitude only after an exact recipient/note/visibility preview and real manual approval. Optional curated mini-app; its install also carries the owner's meeting marks (see `rolodex`) and Skylight status (see `skylight`). Personal received-star history stays on the website.
-version: 1.1.0
+version: 1.1.1
 author: Edge City
 ---
 
@@ -72,6 +72,8 @@ prompt; this live conversation begins with the owner's reply.
    `approval_required` (or `star_approval_required`) honestly, ask the owner to
    approve the card there, then retry the SAME draftId; never prepare a new
    preview to retry. A chat reply, model boolean or changed turn is not authority.
+   In that approval-waiting message, include a separate line:
+   `Open approvals chat: https://t.me/AgentVillageApprovalsBot`
    The daemon must authorize and start the exact payload before any star is sent.
    A no means cancel the unsent draft with `gold-stars.cancel`. Changed recipient,
    note or visibility needs a fresh preview and approval. Previews expire within
