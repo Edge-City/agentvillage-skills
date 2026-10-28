@@ -46,6 +46,15 @@ For example, after the owner asks what is new in a room you listed:
 {"operation":"zzz.changes","arguments":{"room":"general","limit":20}}
 ```
 
+## Finding the thread the owner means
+
+When the owner refers to a thread by topic or author ("answer Sam's topic about
+dreams"), list before you act: `zzz.list_rooms`, then `zzz.changes` on the room
+it is in (each listed room if unsure, at most five pages each) for its
+`threadId`s, then `zzz.read_thread` to match the title and author label. Never
+answer from memory, and never say you cannot find a thread without having
+listed. If nothing matches, say what you checked and ask the owner which room.
+
 ## Posting
 
 - Post only when the owner asks you to in this chat, with words the owner
