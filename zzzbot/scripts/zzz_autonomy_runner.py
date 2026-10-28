@@ -55,6 +55,44 @@ BRIEF_GUIDANCE = (
     "other. Do not invent facts about any person or project."
 )
 EVENT_BRIEF_MAX_BYTES = 600
+# Topic tags (lead L30725 (3), data L30773): offered only when the claim context carries `room_tags` (the app half adds
+# it once its complete route accepts `tags`), so an older app never sees a tags field and never refuses a completion.
+TAG_GUIDANCE = (
+    " When you start a new topic with a title, also add \"tags\": a list of 1 to 3 short lowercase tags for it. Reuse "
+    "tags from room_tags first, and make a new one only when none fits."
+)
+ROOM_TAGS_MAX, TOPIC_TAGS_MAX, TAG_CHARS = 20, 3, 40
+
+
+def _clean_tag(value):
+    """One tag made safe, or None: NFKC, every BRIEF_STRIP_CATEGORIES character removed, trimmed, lowercased, 1-40 chars."""
+    if not isinstance(value, str):
+        return None
+    tag = "".join(c for c in unicodedata.normalize("NFKC", value) if unicodedata.category(c) not in BRIEF_STRIP_CATEGORIES)
+    tag = tag.strip().casefold()
+    return tag if 1 <= len(tag) <= TAG_CHARS else None
+
+
+def _tag_list(values, limit):
+    """Best effort (review-b #543 S1/S2): drop entries that are not usable tags, de-duplicate, keep the first `limit`."""
+    out = []
+    for value in values if isinstance(values, list) else []:
+        tag = _clean_tag(value)
+        if tag is not None and tag not in out:
+            out.append(tag)
+        if len(out) == limit:
+            break
+    return out
+
+
+def _room_tags(value):
+    """The room's existing tags from the claim context, filtered (never a refusal: room tags are written by anyone)."""
+    return _tag_list(value, ROOM_TAGS_MAX)
+
+
+def _topic_tags(value):
+    """The model's tags for a new topic, filtered: up to 3 usable tags; none usable means the topic posts untagged."""
+    return _tag_list(value, TOPIC_TAGS_MAX)
 # Every control (Cc), format (Cf: bidi, zero-width, soft hyphen, U+E0000-E007F tag characters), private-use (Co),
 # unassigned (Cn) and line/paragraph separator (Zl, Zp) character becomes a space, so no invisible text reaches the model.
 BRIEF_STRIP_CATEGORIES = frozenset({"Cc", "Cf", "Co", "Cn", "Zl", "Zp"})
@@ -283,6 +321,7 @@ def _output(context: dict, home: Path):
     brief = _event_brief(context.get("event_brief"))
     targets = set()
     can_create = False
+    tags_ok = False
     if kind == "new_topic":
         topics = context.get("recent_topics")
         if not isinstance(context.get("room_brief"), str) or not isinstance(topics, list) or len(topics) > 5:
@@ -299,6 +338,9 @@ def _output(context: dict, home: Path):
         if not can_create and not targets:
             raise ValueError("topic-capacity")
         data = {"room_brief": context["room_brief"], "can_create_topic": can_create, "recent_topics": topics}
+        if "room_tags" in context:
+            tags_ok = True
+            data["room_tags"] = _room_tags(context["room_tags"])
     else:
         source = context.get("source")
         if not isinstance(source, dict) or not isinstance(source.get("body"), str) or len(source["body"].encode()) > 4000:
@@ -315,7 +357,8 @@ def _output(context: dict, home: Path):
     with httpx.Client(trust_env=False, timeout=30) as client_http:
         with OpenAI(api_key=key, base_url=endpoint, http_client=client_http, max_retries=0) as client:
             response = client.chat.completions.create(model=model, messages=[
-                {"role": "system", "content": SYSTEM if brief is None else SYSTEM + BRIEF_GUIDANCE},
+                {"role": "system", "content": SYSTEM + ("" if brief is None else BRIEF_GUIDANCE) +
+                 (TAG_GUIDANCE if tags_ok and can_create else "")},
                 {"role": "user", "content": json.dumps({"kind": kind, **data}, ensure_ascii=False)[:10000]}],
                 timeout=30, **limit)
     # "length" is accepted only if the text still parses as the strict JSON below.
@@ -335,7 +378,8 @@ def _output(context: dict, home: Path):
     if kind != "new_topic":
         allowed = ({"body"},)
     else:
-        allowed = (({"body", "title"},) if can_create else ()) + (({"body", "existing_thread_id"},) if targets else ())
+        allowed = (({"body", "title"},) if can_create else ()) + (({"body", "title", "tags"},) if can_create and tags_ok else ()) + \
+            (({"body", "existing_thread_id"},) if targets else ())
     if set(result) not in allowed:
         raise ValueError("model-output")
     body = result.get("body")
@@ -346,7 +390,10 @@ def _output(context: dict, home: Path):
         raise ValueError("model-title")
     if "existing_thread_id" in result and result["existing_thread_id"] not in targets:
         raise ValueError("model-target")
-    return {key: value.strip() for key, value in result.items()}
+    if "tags" in result:
+        tags = _topic_tags(result["tags"])
+        result = {**result, "tags": tags} if tags else {key: value for key, value in result.items() if key != "tags"}
+    return {key: value if key == "tags" else value.strip() for key, value in result.items()}
 
 
 def _state_dir(home: Path):
