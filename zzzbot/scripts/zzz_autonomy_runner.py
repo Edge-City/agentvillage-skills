@@ -9,8 +9,10 @@ if __name__ == "__main__" and not sys.flags.isolated:
     except OSError:
         os._exit(1)
 
+import errno
 import fcntl
 import hashlib
+import importlib.util
 import json
 import logging
 import math
@@ -292,8 +294,278 @@ def _activity(http, cfg: dict, operation: str, **fields):
     return result
 
 
+# config.yaml's top-level `model` (RUNNER-STDLIB-ROUTE). Hermes runs this job with its own interpreter, where PyYAML
+# is a core dependency, so the route is read with yaml.safe_load exactly as before; only when PyYAML cannot be imported
+# does this strict standard-library fallback read it, so a box missing PyYAML still reaches the claim step. It reads the
+# one top-level `model:` key, either as an inline scalar or as a block of `key: value` lines indented under it, with
+# plain, 'single'- or "double"-quoted one-line scalars, comments and blank lines; of that block it keeps MODEL_KEYS and
+# ignores the rest. Anything PyYAML might read differently raises ValueError("model-config"): a flow collection (other
+# than an empty [] or {} on an ignored key), an anchor, alias, tag or merge key, a block or multi-line scalar, a
+# duplicate key, a second `model:`, a tab in the block, a document marker or directive, or a value of a kept key that
+# is not a scalar or that YAML 1.1 types as other than a string or null. The rest of the file is scanned only so a
+# multi-line string or flow there can never hide or fake the `model:` line. Where yaml.safe_load reads the file, this
+# gives its `model` (kept keys) or refuses (pinned by a differential test against PyYAML).
+MODEL_KEYS = ("provider", "default", "base_url", "api_mode", "api_key")
+# PyYAML's YAML 1.1 implicit resolvers (yaml/resolver.py): plain scalars it reads as null, or as bool, float, int,
+# timestamp, merge or value (anything but a string).
+_YAML_NULL = re.compile(r"(?:~|null|Null|NULL|)\Z")
+_YAML_TYPED = re.compile(r"""(?:yes|Yes|YES|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF
+    |[-+]?(?:[0-9][0-9_]*)\.[0-9_]*(?:[eE][-+][0-9]+)?|\.[0-9][0-9_]*(?:[eE][-+][0-9]+)?
+    |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN)
+    |[-+]?0b[0-1_]+|[-+]?0[0-7_]+|[-+]?(?:0|[1-9][0-9_]*)|[-+]?0x[0-9a-fA-F_]+|[-+]?[1-9][0-9_]*(?::[0-5]?[0-9])+
+    |[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]
+    |[0-9][0-9][0-9][0-9]-[0-9][0-9]?-[0-9][0-9]?(?:[Tt]|[ \t]+)[0-9][0-9]?:[0-9][0-9]:[0-9][0-9](?:\.[0-9]*)?
+     (?:[ \t]*(?:Z|[-+][0-9][0-9]?(?::[0-9][0-9])?))?
+    |<<|=)\Z""", re.X)
+_YAML_ESCAPES = {"0": "\0", "a": "\a", "b": "\b", "t": "\t", "\t": "\t", "n": "\n", "v": "\v", "f": "\f", "r": "\r",
+                 "e": "\x1b", " ": " ", '"': '"', "\\": "\\", "/": "/", "N": "\x85", "_": "\xa0", "L": "\u2028",
+                 "P": "\u2029"}
+# PyYAML refuses a stream holding a non-printable character; NEL, LS, PS and a lone CR are line breaks to it.
+_YAML_REFUSED_CHARS = re.compile("[^\t\n\x20-\x7e\xa0-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]|[\u2028\u2029]")
+_YAML_KEY_END = re.compile(r"[ \t]*:(?:[ \t]|\Z)")
+_YAML_COMMENT = re.compile(r"[ \t]#")
+_YAML_BLOCK = re.compile(r"[|>](?:[-+][1-9]?|[1-9][-+]?)?(?:[ \t]+#.*|[ \t]*)\Z")
+_YAML_MODEL_KEY = re.compile(r"([A-Za-z_][A-Za-z0-9_-]*) *:(?: (.*))?\Z")
+_YAML_MODEL_LINE = re.compile(r"^model[ \t]*:(?:[ \t]|$)", re.M)
+
+
+def _yaml_refuse():
+    raise ValueError("model-config")
+
+
+def _yaml_quoted(text: str, quote: str, start: int):
+    """A quoted scalar from text[start:] (just past its opening quote) to its closing quote on this line:
+    (value, index after the quote), or None when the line ends first (the scalar goes on)."""
+    out, i = [], start
+    while i < len(text):
+        char = text[i]
+        if char == quote and not (quote == "'" and text[i + 1:i + 2] == "'"):
+            return "".join(out), i + 1
+        if char == "'" == quote:
+            out.append("'")
+            i += 2
+        elif char == "\\" and quote == '"':
+            escape = text[i + 1:i + 2]
+            size = {"x": 2, "u": 4, "U": 8}.get(escape, 0)
+            digits = text[i + 2:i + 2 + size]
+            if escape in _YAML_ESCAPES:
+                out.append(_YAML_ESCAPES[escape])
+            elif not escape:
+                return None  # an escaped line break
+            elif size and len(digits) == size and all(c in "0123456789abcdefABCDEF" for c in digits) and \
+                    int(digits, 16) <= 0x10FFFF:
+                out.append(chr(int(digits, 16)))
+            else:
+                _yaml_refuse()
+            i += 2 + size
+        else:
+            out.append(char)
+            i += 1
+    return None
+
+
+def _yaml_tail(rest: str):
+    """What may follow a closed scalar or flow on its line: nothing, or a comment after white space."""
+    stripped = rest.lstrip(" \t")
+    if stripped and not (stripped[0] == "#" and len(stripped) < len(rest)):
+        _yaml_refuse()
+
+
+def _yaml_flow(text: str):
+    """A flow collection that must close on its own line: [] or {} when empty, else None."""
+    depth, i = 0, 0
+    while i < len(text):
+        char = text[i]
+        if char in "'\"":
+            closed = _yaml_quoted(text, char, i + 1)
+            if closed is None:
+                _yaml_refuse()
+            i = closed[1]
+            continue
+        if char == "#" and text[i - 1] in " \t":
+            break
+        depth += (char in "[{") - (char in "]}")
+        i += 1
+        if depth == 0:
+            _yaml_tail(text[i:])
+            return {"[]": [], "{}": {}}.get(text[:i])
+    _yaml_refuse()
+
+
+def _yaml_value(text: str):
+    """One value as written after `key:` or `- `: (kind, value), kind one of none, scalar (quoted), plain, flow,
+    open (a quoted scalar that goes on past this line; value is its quote) or block."""
+    text = text.lstrip(" \t")
+    if not text or text[0] == "#":
+        return "none", None
+    if text[0] in "'\"":
+        closed = _yaml_quoted(text, text[0], 1)
+        if closed is None:
+            return "open", text[0]
+        _yaml_tail(text[closed[1]:])
+        return "scalar", closed[0]
+    if text[0] in "[{":
+        return "flow", _yaml_flow(text)
+    if text[0] in "|>":
+        if not _YAML_BLOCK.match(text):
+            _yaml_refuse()
+        return "block", None
+    if text[0] in "&*!%@`,]}" or (text[0] in "-?:" and text[1:2] in ("", " ", "\t")):
+        _yaml_refuse()
+    value = _YAML_COMMENT.split(text, maxsplit=1)[0].rstrip(" \t")
+    if re.search(r":(?:[ \t]|\Z)", value) or value in ("<<", "="):
+        _yaml_refuse()  # a nested mapping, or a merge/value tag PyYAML cannot construct
+    return "plain", value
+
+
+def _yaml_plain(value: str):
+    """A plain scalar of a kept key: None for YAML's null words, the string itself, or refused when typed."""
+    if _YAML_NULL.match(value):
+        return None
+    if _YAML_TYPED.match(value):
+        _yaml_refuse()
+    return value
+
+
+def _yaml_line(line: str, indent: int, strict: bool):
+    """Scan one structural line outside the kept keys: (state, value kind). The state is None, ("quote", char) for a
+    quoted scalar that goes on, or ("block", column) for a block scalar whose content is indented past column.
+    strict (under an ignored key of the model block) refuses both, and any non-empty flow."""
+    col, rest, parent = indent, line[indent:], None
+    while rest[:1] == "-" and rest[1:2] in ("", " ", "\t"):
+        parent = col
+        skip = 1 + len(rest[1:]) - len(rest[1:].lstrip(" \t"))
+        col, rest = col + skip, rest[skip:]
+    value = rest
+    if rest[:1] in ("'", '"'):
+        closed = _yaml_quoted(rest, rest[0], 1)
+        if closed is not None:
+            key_end = re.match(r"[ \t]*:(?:[ \t]|\Z)", rest[closed[1]:])
+            if not key_end:
+                _yaml_tail(rest[closed[1]:])
+                return None, "scalar"
+            parent, value = col, rest[closed[1] + key_end.end():]
+    elif rest[:1] not in ("", "#", "[", "{", "|", ">"):
+        key_end, comment = _YAML_KEY_END.search(rest), _YAML_COMMENT.search(rest)
+        if key_end and not (comment and comment.start() < key_end.start()):
+            if rest[:1] in "?&*!%@`,]}:" or rest[:key_end.start()] == "<<":
+                _yaml_refuse()
+            parent, value = col, rest[key_end.end():]
+        elif parent is None and not strict:
+            return None, "plain"  # a bare line, maybe a multi-line plain scalar's next line: only its own text
+    kind, found = _yaml_value(value)
+    if kind == "open":
+        if strict:
+            _yaml_refuse()
+        return ("quote", found), kind
+    if kind == "block":
+        if strict or parent is None:
+            _yaml_refuse()
+        return ("block", parent), kind
+    if kind == "flow" and found is None and strict:
+        _yaml_refuse()
+    return None, kind
+
+
+def _model_config(raw: bytes):
+    """config.yaml's top-level `model` as yaml.safe_load(raw) gives it (kept keys only), or ValueError("model-config")."""
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        _yaml_refuse()
+    text = text.removeprefix("\ufeff").replace("\r\n", "\n")
+    if _YAML_REFUSED_CHARS.search(text):
+        _yaml_refuse()
+    found, model, block, keys, seen, nested, sequence, first = False, None, None, None, set(), False, False, True
+    state = None
+    for line in text.split("\n"):
+        if line[:3] in ("---", "...") and line[3:4] in ("", " ", "\t") or line[:1] == "%":
+            _yaml_refuse()
+        if state and state[0] == "quote":
+            closed = _yaml_quoted(line, state[1], 0)
+            if closed is not None:
+                _yaml_tail(line[closed[1]:])
+                state = None
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        body = line[indent:]
+        blank = not body.strip(" \t")
+        if blank and "\t" in line:
+            _yaml_refuse()  # PyYAML refuses a tab outside a string or comment, even on an empty line
+        if state and (blank or indent > state[1]):
+            continue  # block scalar content
+        state = None
+        if blank:
+            continue
+        if body.lstrip(" \t")[0] == "#":
+            if "\t" in line[:line.index("#")]:
+                _yaml_refuse()
+            continue
+        if "\t" in line or (first and indent):
+            _yaml_refuse()
+        if indent == 0:
+            block = None
+            if body[0] == "-" and body[1:2] in ("", " ", "\t"):
+                if not sequence:
+                    _yaml_refuse()  # the top level is a sequence, or `model` is one
+                state, _ = _yaml_line(line, 0, False)
+                continue
+            first = False
+            key_end, comment = _YAML_KEY_END.search(body), _YAML_COMMENT.search(body)
+            if body[0] in "'\"?[{&*!|>@`,]}:" or not key_end or (comment and comment.start() < key_end.start()):
+                _yaml_refuse()  # a quoted or complex top-level key, or a top level that is not a mapping
+            if body[:key_end.start()] != "model":
+                state, kind = _yaml_line(line, 0, False)
+                sequence = kind == "none"
+                continue
+            if found:
+                _yaml_refuse()
+            found, sequence = True, False
+            kind, value = _yaml_value(body[key_end.end():])
+            if kind in ("open", "block") or (kind == "flow" and value is None):
+                _yaml_refuse()
+            block = "keys" if kind == "none" else "scalar"
+            model = _yaml_plain(value) if kind == "plain" else value
+            continue
+        if block == "scalar":
+            _yaml_refuse()  # a multi-line scalar
+        if block != "keys":
+            state, _ = _yaml_line(line, indent, False)
+            continue
+        if keys is None:
+            keys, model = indent, {}
+        if indent == keys:
+            match = _YAML_MODEL_KEY.match(body)
+            if not match or match[1] in seen:
+                _yaml_refuse()
+            seen.add(match[1])
+            kind, value = _yaml_value(match[2] or "")
+            kept = match[1] in MODEL_KEYS
+            if kind in ("open", "block") or (kind == "flow" and (kept or value is None)):
+                _yaml_refuse()
+            nested = kind == "none" and not kept
+            if kept:
+                model[match[1]] = _yaml_plain(value) if kind == "plain" else value
+        elif indent > keys and nested:
+            _yaml_line(line, indent, True)  # inside an ignored key's own value
+        else:
+            _yaml_refuse()
+    if state and state[0] == "quote" or len(_YAML_MODEL_LINE.findall(text)) != found:
+        _yaml_refuse()  # an unclosed string, or a `model:` line seen only inside a string
+    return model
+
+
+def _model_section(raw: bytes):
+    """config.yaml's top-level `model`: yaml.safe_load's, or the stdlib reader's only when PyYAML is not importable."""
+    try:
+        import yaml
+    except ImportError:
+        return _model_config(raw)
+    config = yaml.safe_load(raw)
+    return config.get("model") if isinstance(config, dict) else None
+
+
 def _model_route(home: Path):
-    import yaml
     path = home / "config.yaml"
     if any(part.is_symlink() for part in (path, *path.parents)):
         raise ValueError("model-config-link")
@@ -302,8 +574,7 @@ def _model_route(home: Path):
         meta = os.fstat(source.fileno())
         if not stat.S_ISREG(meta.st_mode) or meta.st_size > 65536:
             raise ValueError("model-config")
-        config = yaml.safe_load(source)
-    model = config.get("model") if isinstance(config, dict) else None
+        model = _model_section(source.read(65537))
     provider = model.get("provider") if isinstance(model, dict) else None
     name = model.get("default") if isinstance(model, dict) else None
     if not isinstance(name, str) or not 1 <= len(name) <= 200 or any(ord(c) < 32 for c in name):
@@ -491,17 +762,57 @@ def _record_failure(home: Path, now: float, state: dict):
     _state_write(home, {**state, "failures": failures, "until": until})
 
 
+# The step a failure is reported under (main's one stderr line), in order; everything before "claim" is stdlib-only.
+STEPS = ("home", "installed", "config", "job", "model_route", "lock", "state", "claim", "turn")
+REASON_CODE = re.compile(r"[a-z][a-z0-9-]{1,40}\Z")
+_step = STEPS[0]
+
+
+def _enter(step: str):
+    global _step
+    _step = step
+
+
+def _importable(name: str) -> bool:
+    """Whether `name` would import, without importing it (a module already loaded counts)."""
+    if name in sys.modules:
+        return sys.modules[name] is not None
+    return importlib.util.find_spec(name) is not None
+
+
+def _reason(error: BaseException) -> str:
+    """A failure's safe code: its own short code (ValueError("model-provider")), else an OSError's errno name
+    (ENOENT), else "-". Never the message itself, which can hold a path, a credential or room text."""
+    if REASON_CODE.match(str(error)):
+        return str(error)
+    if isinstance(error, OSError) and error.errno in errno.errorcode:
+        return errno.errorcode[error.errno]
+    return "-"
+
+
+def reason_line(error: BaseException) -> str:
+    """The one stderr line a failed run prints: `zzz-autonomy: <step> <ExceptionClass> <code>`."""
+    name = re.sub(r"[^A-Za-z0-9_]", "", type(error).__name__)[:60] or "-"
+    return f"zzz-autonomy: {_step} {name} {_reason(error)}\n"
+
+
 def run(home: Path):
     _quiet_sdk()
+    _enter("installed")
     if not _installed(home):
         return
+    _enter("config")
     cfg = _config(home)
+    _enter("job")
     _job(home, cfg)
     # A box whose model route cannot work never claims: no lease taken, no room text read, no paid call.
+    _enter("model_route")
     _model_route(home)
+    _enter("lock")
     with _turn_lock(home) as acquired:
         if not acquired:
             return
+        _enter("state")
         now = _now()
         state = _state_read(home, now)
         if state["until"] > now:
@@ -512,12 +823,21 @@ def run(home: Path):
             if state.get("code") != DAILY_CAP_CODE:
                 _state_write(home, {**state, "code": DAILY_CAP_CODE})
             return
-        import httpx
+        # The first non-stdlib imports. Both clients must be present before a claim: a turn that claims and then
+        # cannot call the model spends one of the candidate's attempts and a daily turn for nothing.
+        _enter("claim")
+        try:
+            import httpx
+        except ImportError:
+            raise ValueError("http-client") from None
+        if not _importable("openai"):
+            raise ValueError("model-client")
         with httpx.Client(trust_env=False, timeout=10) as http:
             claim = _activity(http, cfg, "claim")
             candidate = claim.get("candidate")
             if candidate is None:
                 return
+            _enter("turn")
             try:
                 _claimed_turn(home, cfg, http, candidate, state)
             except BaseException:
@@ -557,8 +877,13 @@ def main():
         if os.environ.get("HERMES_HOME") and Path(os.environ["HERMES_HOME"]).resolve(strict=True) != home:
             raise ValueError("home")
         run(home)
-    except Exception:
-        # The scheduler sees a failure, never private context or credentials.
+    except Exception as error:
+        # The scheduler sees a failure and one reason line (step, exception class, safe code), never a message, a
+        # path, private context or credentials.
+        try:
+            os.write(2, reason_line(error).encode())
+        except Exception:
+            pass
         os._exit(1)
 
 
