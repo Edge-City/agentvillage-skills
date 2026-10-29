@@ -201,6 +201,18 @@ def schedule(token: str) -> str:
     return f"{phase(token)}-59/5 * * * *"
 
 
+# The zzzbot entries this turn runs under, each by exact equality: a mirror of plugins/village-bridge/_mini_apps.py
+# ZZZBOT_ACCEPTED (this isolated child never imports the bridge). 1.1.0 (ov#538, served by cp#464) lists the five, then
+# the agent's own retag and edit, which this runner never calls; 1.0.0 lists the five alone. Any other version, list or
+# order is off (RUNNER-ZZZBOT-110).
+ZZZBOT_ACCEPTED = (
+    {"id": "zzzbot", "version": "1.1.0", "skills": ["zzzbot"], "operations": [
+        "zzz.list_rooms", "zzz.read_thread", "zzz.changes", "zzz.reply", "zzz.create_thread", "zzz.tag_thread", "zzz.edit_post"]},
+    {"id": "zzzbot", "version": "1.0.0", "skills": ["zzzbot"], "operations": [
+        "zzz.list_rooms", "zzz.read_thread", "zzz.changes", "zzz.reply", "zzz.create_thread"]},
+)
+
+
 def _installed(home: Path):
     doc = _plain_json(home / "mini-apps.json", 16384)
     if not isinstance(doc, dict) or set(doc) != {"version", "apps"} or doc["version"] != 1 or not isinstance(doc["apps"], list):
@@ -209,9 +221,7 @@ def _installed(home: Path):
     if len(apps) != len(doc["apps"]) or apps.get("zzz-autonomy-runner") != {
             "id": "zzz-autonomy-runner", "version": "1.0.0", "operations": [], "skills": []}:
         return False
-    zzz = apps.get("zzzbot")
-    return isinstance(zzz, dict) and zzz.get("version") == "1.0.0" and zzz.get("skills") == ["zzzbot"] and zzz.get("operations") == [
-        "zzz.list_rooms", "zzz.read_thread", "zzz.changes", "zzz.reply", "zzz.create_thread"]
+    return apps.get("zzzbot") in ZZZBOT_ACCEPTED
 
 
 def _job(home: Path, cfg: dict):
