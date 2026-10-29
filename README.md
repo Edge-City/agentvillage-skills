@@ -31,6 +31,11 @@ the owner publishes on Slopfolio), `dreamstarter` (suggested dreams from lines
 the owner types for that request, the owner's ElevenLabs Startup Grant draft with
 a review link where they submit it themselves, and DreamStarter's public Goa local
 business write-ups; each send only after the owner's yes to exactly what goes),
+`library` (search and read Edge Library, the
+village knowledge graph; read only; no sign-in: the app server names the owner
+to Edge Library by a private, stable per-app reference, never a Telegram id or
+username;
+tenant-restricted),
 and `forkicks` (live café menu/schedule and exact-preview,
 manually approved orders with returned UPI links or card at pickup). UPI receipts
 name SWISSDESI (For Kicks' UPI), the exact amount and order note, and say the café
@@ -47,7 +52,7 @@ in that order. This skills repository does not contain the overlay installer.
 is also a baseline skill the installer ships to every box, inert until the app is
 installed; the helper never removes a skill the installer ships. Removing an app
 revokes its permission and removes only a skill file the installer does not ship
-(`dizko`, `zzzbot`, `slopfolio`, `dreamstarter`, `forkicks` and `kismet`). Copying a skill alone grants no API access.
+(`dizko`, `zzzbot`, `slopfolio`, `dreamstarter`, `forkicks`, `kismet` and `library`). Copying a skill alone grants no API access.
 See [the builder starter and review contract](../mini-apps/README.md).
 
 The skills cross-reference each other. `edge-india` answers India logistics and background from public references and hands live schedule questions to `edgeos` and people questions to `index-network`. `edge-esmeralda` supplies the popup id that `edgeos` recipes need. `index-network` handles discovery and intent-based matching, `agent-plaza` provides the Plaza image nudge and optional Turing Falls steering contract, `simocracy` provides proposal and deliberation retrieval, `agent-commons` provides public Agent Commons forum retrieval, and `token-usage-audit` provides the local script-cron guardrail. Install all eight together.
